@@ -19,15 +19,18 @@ Proving each contract in isolation before extracting to package. No code ships u
 
 ## Milestone 1: Playable Game (CLI)
 
-Single scenario (US-Iran), CLI interface, all play modes.
+Single scenario (US-Iran), CLI interface. The core product: **infinite action space + internally coherent world.** Players can do anything; the world responds consistently. The game is deeply modeled but accessible through sub-agent advisors who explain the world to the player.
 
 - [ ] Package extracted from verified notebooks
-- [ ] CLI interface for human play
-- [ ] AI opponent (realistic + probabilistic modes)
+- [ ] CLI interface for human play (NL input, narrative output)
+- [ ] Sub-agent advisors as the accessibility layer — Intel Chief, Military Advisor explain the game world to players who don't have PhDs in IR theory. "What happens if I sanction their bank?" gets an informed answer.
+- [ ] AI opponent (realistic + probabilistic modes) for solo play
 - [ ] End-of-game scoring
-- [ ] Prompt templates migrated to YAML/Jinja2
+- [ ] Fog of war (players discover the world through play, not a rulebook)
 
-**Success:** Two humans (or human vs AI) play a full 20-turn game. Scoring is coherent. Cost < $20.
+**Success:** Two humans (or human vs AI) play a full 20-turn game. A player with zero geopolitics knowledge can make informed decisions via sub-agents. Scoring is coherent. Cost < $20.
+
+**Why sub-agents are core product:** The game has hidden variables, complex causal dynamics, and a deeply modeled world. Sub-agents are how the game handles the complexity gap — they're the accessibility layer between "infinitely flexible action space" and "a human who wants to have fun."
 
 ## Milestone 2: Dynamic Agents (ADR-003)
 
@@ -41,9 +44,17 @@ GM can instantiate transient agents when phenomena become relevant.
 
 **Success:** A game where the GM dynamically creates a "public opinion" agent that meaningfully affects outcomes.
 
-## Milestone 3: Web UI
+## Milestone 3: Serious Wargaming
 
-Move from CLI to web-based interface.
+Calibrate the underlying models against real geopolitical dynamics. Move from "fun game" toward a tool think tanks and militaries could use.
+
+- [ ] Domain models calibrated against historical cases
+- [ ] Base rates grounded in empirical data
+- [ ] Scenario design validated by subject matter experts
+- [ ] Batch AI-vs-AI analysis for outcome distribution research
+- [ ] Internet-enriched realism (current events via open_web_retrieval)
+
+## Milestone 4: Web UI
 
 - [ ] FastAPI backend wrapping the game engine
 - [ ] WebSocket-based turn submission
