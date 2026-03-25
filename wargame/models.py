@@ -108,6 +108,7 @@ class ResourceBudgetSpec(BaseModel):
 class ScenarioMeta(BaseModel):
     """Top-level scenario metadata."""
     name: str
+    schema_version: str = "0.1.0"
     turns: int
     time_per_turn: str
     description: str = ""

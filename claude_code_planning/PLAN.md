@@ -413,11 +413,13 @@ class PerActorObservation(BaseModel):
 
 class AdjudicationPacket(BaseModel):
     """GM's assessment of an action. Probabilities must sum to 1.0."""
-    action_id: str = Field(description="Copied from the ActionIntent")
+    # NOTE: action_id intentionally excluded — assigned by engine post-generation,
+    # not by LLM (per CLAUDE.md structured output ID guidelines)
     reasoning: str = Field(description="GM's chain-of-thought: what models/state informed this assessment")
     possible_outcomes: list[OutcomeBranch]
     observability: list[PerActorObservation]
     # NOTE: proposed_new_variables intentionally excluded from v1
+    # @model_validator enforces probabilities sum to ~1.0
 ```
 
 ### 4.4 ObservationPacket (to player)

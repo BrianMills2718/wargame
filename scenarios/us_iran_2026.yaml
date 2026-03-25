@@ -1,5 +1,6 @@
 meta:
   name: "US-Iran Crisis 2026"
+  schema_version: "0.1.0"
   turns: 20
   time_per_turn: "1 month"
   description: "A US-Iran strategic crisis scenario. The US seeks to prevent nuclear breakout and maintain regional stability. Iran seeks regime survival, sovereignty, and regional influence."
@@ -62,19 +63,19 @@ domain_models:
     subtype: transition
     description: "Escalating sanctions creates internal economic stress and regime pressure, but effect is reduced by evasion channels and depends on elite cohesion."
     key_variables: [sv_sanctions_intensity, sv_internal_legitimacy, sv_elite_cohesion]
-    base_rates: {strong_effect: 0.25, moderate_effect: 0.40, weak_effect: 0.35}
+    base_rates: {critical_success: 0.05, success: 0.20, partial: 0.40, failure: 0.25, critical_failure: 0.10}
 
   - id: dm_deterrence_dynamics
     subtype: transition
     description: "Credible military threat deters escalation, but overdeployment can provoke rather than deter. Effectiveness depends on force posture relative to adversary perception."
     key_variables: [sv_military_tension, sv_deterrence_balance, sv_force_posture, sv_perceived_iran_threat]
-    base_rates: {deters: 0.40, no_effect: 0.35, provokes: 0.25}
+    base_rates: {critical_success: 0.05, success: 0.35, partial: 0.30, failure: 0.20, critical_failure: 0.10}
 
   - id: dm_proxy_deterrence
     subtype: transition
     description: "Proxy network depth raises intervention costs for adversaries, providing asymmetric deterrence. But proxy activity also raises escalation risk."
     key_variables: [sv_proxy_network_presence, sv_proxy_activity, sv_deterrence_balance, sv_regional_depth]
-    base_rates: {deters: 0.35, neutral: 0.30, escalates: 0.35}
+    base_rates: {critical_success: 0.05, success: 0.30, partial: 0.30, failure: 0.25, critical_failure: 0.10}
 
   - id: dm_nuclear_latency
     subtype: transition
@@ -92,7 +93,7 @@ domain_models:
     subtype: transition
     description: "Diplomatic initiatives require sustained engagement and credible offers. Effectiveness depends on alliance credibility, willingness to make concessions, and domestic political space."
     key_variables: [sv_diplomatic_engagement, sv_alliance_credibility]
-    base_rates: {breakthrough: 0.10, progress: 0.30, stall: 0.40, backlash: 0.20}
+    base_rates: {critical_success: 0.05, success: 0.25, partial: 0.40, failure: 0.25, critical_failure: 0.05}
 
 state_variables:
   # Value-adjacent

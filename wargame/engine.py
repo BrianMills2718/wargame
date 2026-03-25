@@ -226,7 +226,7 @@ def advance_multi_turn_actions(conn: sqlite3.Connection, current_turn: int) -> d
         )
 
         # Mark completed if final step
-        if step + 1 >= len(effects) and duration != -1:  # -1 = ongoing
+        if step + 1 >= len(effects) and str(duration) != "ongoing":
             conn.execute("UPDATE active_actions SET completed=1 WHERE active_id=?", (active_id,))
 
     return deltas
