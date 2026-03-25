@@ -214,6 +214,18 @@ def validate_adjudication(
     if missing:
         issues.append(f"Missing outcome_ids: {missing}")
 
+    # Check ±tolerance deviation from base rates (anti-god-moding)
+    if base_rates:
+        for outcome in packet.possible_outcomes:
+            base = base_rates.get(outcome.outcome_id)
+            if base is not None:
+                deviation = abs(outcome.probability - base)
+                if deviation > tolerance:
+                    issues.append(
+                        f"God-moding: {outcome.outcome_id} probability {outcome.probability:.2f} "
+                        f"deviates {deviation:.2f} from base rate {base:.2f} (max ±{tolerance})"
+                    )
+
     return issues
 
 

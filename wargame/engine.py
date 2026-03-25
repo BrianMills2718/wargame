@@ -351,25 +351,36 @@ def resolve_action(
     outcomes: list[dict],
     turn_number: int,
     seed: int | None = None,
-) -> tuple[dict, float]:
-    """Roll RNG against outcome probabilities. Returns (chosen_outcome, rng_roll).
+) -> tuple[dict, float, int]:
+    """Roll RNG against outcome probabilities.
+
+    Returns (chosen_outcome, rng_roll, seed_used). The seed_used value allows
+    exact replay: calling with the same seed reproduces the same outcome.
 
     outcomes: list of dicts with at least 'outcome_id', 'probability', 'state_transitions'.
     """
-    if seed is not None:
-        rng = random.Random(seed)
-    else:
-        rng = random.Random()
+    if seed is None:
+        seed = random.randint(0, 2**31)
+    rng = random.Random(seed)
 
     ids = [o["outcome_id"] for o in outcomes]
     weights = [o["probability"] for o in outcomes]
+
+    # Use a single roll for both selection and logging
     roll = rng.random()
 
-    # Select outcome
-    chosen_id = rng.choices(ids, weights=weights, k=1)[0]
+    # Manual weighted selection from the single roll value (replayable)
+    cumulative = 0.0
+    chosen_id = ids[-1]  # fallback
+    for oid, w in zip(ids, weights):
+        cumulative += w
+        if roll < cumulative:
+            chosen_id = oid
+            break
+
     chosen = next(o for o in outcomes if o["outcome_id"] == chosen_id)
 
-    return chosen, roll
+    return chosen, roll, seed
 
 
 def apply_action_transitions(
