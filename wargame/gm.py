@@ -24,11 +24,11 @@ from wargame.models import (
 def _format_mechanical_deltas(deltas: dict[str, float] | None) -> str:
     """Format mechanical deltas for inclusion in GM prompt."""
     if not deltas:
-        return "None this turn (no mechanical effects applied yet)."
+        return "None this turn."
     lines = []
     for var_id, delta in sorted(deltas.items()):
         lines.append(f"  {var_id}: {delta:+.4f}")
-    return "\n".join(lines) + "\nYour deltas are ADDITIONAL to these."
+    return "\n".join(lines) + "\nThese have already been applied. The Current State above reflects them."
 
 
 def select_relevant_domain_models(
@@ -144,7 +144,7 @@ RULES:
 
 You must output EXACTLY 5 outcomes: critical_success, success, partial, failure, critical_failure.
 
-IMPORTANT (ADR-002): You will see "Mechanical Effects Already Applied This Turn" — these are structural tendencies from the causal graph (e.g., sanctions structurally erode elite cohesion). Your state_transitions are ADDITIONAL to these. If you believe the narrative should countervail a mechanical effect (e.g., "rally around the flag" boosts cohesion despite sanctions), output an explicit countervailing delta and explain why in your reasoning."""
+NOTE: The "Current State" below ALREADY reflects any mechanical effects (decay, momentum, causal propagation) that occurred this turn. Your state_transitions are applied ON TOP of the current state values shown. You do NOT need to account for or reverse mechanical effects — just decide what the action does to the world as it currently stands."""
 
     user_prompt = f"""## Action to Adjudicate
 
@@ -164,7 +164,7 @@ Ambiguity flags: {', '.join(action.ambiguity_flags) if action.ambiguity_flags el
 ## Mechanical Base Rates (your anchor — justify any deviation)
 {br_text}
 
-## Mechanical Effects Already Applied This Turn
+## Mechanical Effects Already Applied This Turn (context only — do not reverse or account for these)
 {_format_mechanical_deltas(mechanical_deltas)}
 
 ## Valid Variable IDs (only use these in state_transitions)

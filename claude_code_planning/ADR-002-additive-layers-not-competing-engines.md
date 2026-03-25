@@ -10,10 +10,12 @@
 
 ### How it works
 
-1. **Mechanical phase runs first** (decay, momentum, causal propagation, multi-turn actions)
-2. **GM receives the mechanical deltas** as part of its context: "The following mechanical effects will apply this turn: sv_elite_cohesion -0.08 (from sanctions → cohesion causal edge)"
-3. **GM outputs additional deltas** that are *additive* to the mechanical effects. If the GM's narrative says "rally around the flag," it outputs sv_elite_cohesion +0.12. Net: -0.08 + 0.12 = +0.04.
-4. **The engine applies both.** The GM's deltas are explicitly labeled as adjustments on top of mechanical baselines, not replacements.
+1. **Mechanical phase runs first** (decay, momentum, causal propagation, multi-turn actions). State moves from S0 → S1.
+2. **GM sees the post-mechanical state S1** as "current state." The GM prompt includes what mechanical effects occurred (for context/understanding, NOT for algebra).
+3. **GM outputs deltas relative to S1.** No implicit algebra required — the GM just sees the current state and decides what the action does. If the GM wants elite cohesion to go up despite the mechanical drop, it just outputs a positive delta. The mechanical drop already happened.
+4. **Engine applies GM deltas.** S1 → S2. Clamping and rate limits enforced.
+
+**Key design choice (updated after Gemini review of NB3):** The GM does NOT need to calculate relative to mechanical effects. It sees the state as-is and acts on it. Mechanical effects provide context ("legitimacy dropped due to sanctions erosion") but the GM's deltas are absolute from the current state, not relative to what the engine did.
 
 ### Why not abolish the causal graph (Gemini's Option A)
 
