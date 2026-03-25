@@ -74,14 +74,21 @@ Two deeper differentiators:
 | **llm_client** | `call_llm_structured()` for GM/parser/scorer, `call_llm_with_tools()` for sub-agents, observability, cost tracking, model registry |
 | **agentic_scaffolding** | Safety limits (loop detection), attempt history for sub-agents, red-team prompting patterns |
 
+### Play modes (all in scope)
+
+- Human vs Human (domain models + sub-agents)
+- Human vs AI-Realistic (fixed character model)
+- Human vs AI-Probabilistic (sampled character model)
+- AI vs AI (research mode — batch games with varied parameter draws)
+
 ### Not in scope (v1)
 
 - Web UI (CLI only)
-- AI-vs-AI play (human-vs-human only)
 - Dynamic variable creation mid-game (pre-defined variable pool)
 - Non-unitary actors as separate players (modeled via sub-agent personality/bias)
 - Model revision (actors' world models are fixed for the game duration)
 - Multiplayer beyond 2 players
+- Internet-enriched realism (web search for current events)
 
 ---
 
@@ -106,19 +113,37 @@ SCENARIO CONFIGURATION (static for game duration)
         ├── timescale: slow | medium | fast
         └── valid_range: [min, max]
 
+MECHANICAL SYSTEMS (engine computes, no LLM — see ADR-001)
+├── CausalGraph      — directed edges between variables with effect sizes and lags
+│                      (sanctions_intensity --[-0.15, lag=1]--> internal_legitimacy)
+├── VariableDynamics — per-variable decay/momentum rates
+│                      (military_tension decays -0.05/turn; nuclear_latency has momentum -0.3/turn)
+├── BaseRateTables   — mechanical probability baselines per action category
+│                      (covert_base = 0.30 + state-dependent modifiers)
+├── BayesianUpdater  — state estimate update rule: prior + observation_quality * (canonical - prior)
+└── MultiTurnActions — in-progress actions with per-turn effects and resource costs
+
 GAME STATE (changes each turn)
 ├── CanonicalState   — engine's authoritative variable values (privileged estimate, not "truth")
 ├── StateEstimate    — per-actor: what they think each variable's value is
 │                      (derived from observations, not from canonical state directly)
+├── ActiveActions    — multi-turn actions currently in progress
 ├── ActionLog        — full history of intents, adjudications, outcomes
 └── ObservationLog   — what each actor has been told, per turn
 
 TURN EXECUTION (the game loop)
-├── Directive        — player's natural language command
-├── ActionIntent     — structured parse of directive
-├── AdjudicationPacket — GM's probability distribution over outcomes
-├── Resolution       — RNG result + state transitions applied
-└── ObservationPacket — filtered, noisy data sent to each actor
+1. Decay/momentum    — engine applies variable dynamics (mechanical, no LLM)
+2. Multi-turn progress — engine advances in-progress actions (mechanical)
+3. Causal propagation — engine propagates lagged effects from prior turns (mechanical)
+4. Player directives  — players (human or AI) submit commands
+5. Parse              — Parser LLM → ActionIntent (LLM)
+6. Base rate compute  — engine computes mechanical baseline probability (mechanical)
+7. GM adjudication    — GM LLM adjusts baseline ±0.15 with justification (LLM)
+8. RNG resolution     — engine rolls against probabilities (mechanical)
+9. State transitions  — engine applies deltas + causal propagation (mechanical)
+10. Observations      — engine filters per-actor + GM writes narrative (mechanical + LLM)
+11. State estimates   — engine updates per-actor estimates via Bayesian rule (mechanical)
+12. Logging           — engine records full turn to action_log + observation_log
 ```
 
 ### Key design decisions
@@ -283,6 +308,73 @@ initial_state:
 resource_budget:
   actor_us: {per_turn: 10, domains: {military: 3, intelligence: 2, diplomacy: 2, finance: 2, information: 1}}
   actor_iran: {per_turn: 6, domains: {military: 2, intelligence: 1, diplomacy: 1, finance: 1, information: 1}}
+
+# Causal graph — mechanical propagation (engine computes, no LLM)
+causal_edges:
+  # Sanctions effects
+  - {source: sv_sanctions_intensity, target: sv_internal_legitimacy, effect: -0.15, lag: 1}
+  - {source: sv_sanctions_intensity, target: sv_elite_cohesion, effect: -0.08, lag: 2}
+  - {source: sv_sanctions_intensity, target: sv_perceived_us_coercion, effect: +0.25, lag: 0, actor: actor_iran}
+
+  # Proxy effects
+  - {source: sv_proxy_network_presence, target: sv_deterrence_balance, effect: -0.20, lag: 0}  # shifts toward Iran
+  - {source: sv_proxy_network_presence, target: sv_regional_depth, effect: +0.15, lag: 0}
+  - {source: sv_proxy_activity, target: sv_military_tension, effect: +0.20, lag: 0}
+  - {source: sv_proxy_activity, target: sv_perceived_iran_threat, effect: +0.30, lag: 0, actor: actor_us}
+
+  # Military dynamics
+  - {source: sv_force_posture, target: sv_deterrence_balance, effect: +0.15, lag: 0}  # shifts toward US
+  - {source: sv_force_posture, target: sv_military_tension, effect: +0.10, lag: 0}
+  - {source: sv_military_tension, target: sv_regime_survival_risk, effect: +0.10, lag: 0}
+
+  # Diplomatic effects
+  - {source: sv_diplomatic_engagement, target: sv_military_tension, effect: -0.10, lag: 0}
+  - {source: sv_diplomatic_engagement, target: sv_alliance_credibility, effect: +0.05, lag: 1}
+
+  # Internal dynamics
+  - {source: sv_internal_legitimacy, target: sv_regime_survival_risk, effect: -0.20, lag: 0}
+  - {source: sv_elite_cohesion, target: sv_regime_survival_risk, effect: -0.15, lag: 0}
+
+# Variable dynamics — decay/momentum (engine computes each turn, no LLM)
+variable_dynamics:
+  sv_military_tension: {decay_rate: -0.05}       # tension eases without provocation
+  sv_diplomatic_engagement: {decay_rate: -0.08}  # engagement fades without effort
+  sv_proxy_activity: {decay_rate: -0.03}          # activity dies down without orders
+  sv_proxy_network_presence: {decay_rate: -0.01}  # structural, very slow decay
+  sv_sanctions_intensity: {decay_rate: -0.02}     # sanctions erode via evasion
+  sv_nuclear_latency: {momentum: -0.3}            # Iran's program advances by default (months)
+  sv_force_posture: {decay_rate: -0.02}           # deployments need sustainment
+
+# Multi-turn action templates
+multi_turn_actions:
+  sanctions_ramp:
+    duration: 3
+    resource_cost_per_turn: 2
+    domain: finance
+    target_var: sv_sanctions_intensity
+    effect_per_turn: [0.05, 0.10, 0.15]
+
+  proxy_network_expansion:
+    duration: 4
+    resource_cost_per_turn: 1
+    domain: military
+    target_var: sv_proxy_network_presence
+    effect_per_turn: [0.02, 0.03, 0.03, 0.05]
+
+  diplomatic_initiative:
+    duration: 3
+    resource_cost_per_turn: 2
+    domain: diplomacy
+    target_var: sv_diplomatic_engagement
+    effect_per_turn: [0.10, 0.15, 0.10]
+
+  nuclear_enrichment:
+    duration: ongoing
+    resource_cost_per_turn: 2
+    domain: military
+    target_var: sv_nuclear_latency
+    effect_per_turn: [-0.5]  # accelerate beyond natural momentum
+    interruptible: true
 ```
 
 ### 4.2 ActionIntent (Pydantic model)
@@ -365,6 +457,34 @@ CREATE TABLE state_variables (
     current_value REAL NOT NULL
 );
 
+-- Causal edges (from scenario spec, immutable — defines mechanical propagation)
+CREATE TABLE causal_edges (
+    edge_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_var TEXT NOT NULL REFERENCES state_variables(var_id),
+    target_var TEXT NOT NULL REFERENCES state_variables(var_id),
+    effect REAL NOT NULL,          -- multiplier: target_delta = effect * source_delta
+    lag INTEGER NOT NULL DEFAULT 0, -- turns before effect applies (0 = immediate)
+    actor_scope TEXT,              -- NULL = applies globally, or actor_id for perceptual
+    UNIQUE(source_var, target_var, actor_scope)
+);
+
+-- Variable dynamics (from scenario spec, immutable — defines decay/momentum)
+CREATE TABLE variable_dynamics (
+    var_id TEXT PRIMARY KEY REFERENCES state_variables(var_id),
+    decay_rate REAL,    -- per-turn decay toward 0 (negative = decrease)
+    momentum REAL       -- per-turn autonomous change (e.g., nuclear program advances)
+);
+
+-- Pending causal effects (lagged effects waiting to apply)
+CREATE TABLE pending_effects (
+    effect_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    target_var TEXT NOT NULL REFERENCES state_variables(var_id),
+    delta REAL NOT NULL,
+    applies_on_turn INTEGER NOT NULL,
+    source_action_id TEXT,  -- which action caused this
+    actor_scope TEXT         -- NULL = global
+);
+
 -- Per-actor state estimates (diverge from canonical via fog of war)
 CREATE TABLE state_estimates (
     actor_id TEXT NOT NULL REFERENCES actors(actor_id),
@@ -381,6 +501,21 @@ CREATE TABLE instruments (
     actor_id TEXT NOT NULL REFERENCES actors(actor_id),
     name TEXT NOT NULL,
     midfield_tags TEXT NOT NULL  -- JSON array
+);
+
+-- Active multi-turn actions
+CREATE TABLE active_actions (
+    active_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    action_template TEXT NOT NULL,  -- e.g., "sanctions_ramp"
+    actor_id TEXT NOT NULL REFERENCES actors(actor_id),
+    started_turn INTEGER NOT NULL,
+    duration INTEGER NOT NULL,
+    current_step INTEGER NOT NULL DEFAULT 0,
+    target_var TEXT NOT NULL REFERENCES state_variables(var_id),
+    effects_per_turn JSON NOT NULL,  -- array of per-turn deltas
+    resource_cost_per_turn INTEGER NOT NULL,
+    domain TEXT NOT NULL,
+    completed INTEGER NOT NULL DEFAULT 0
 );
 
 -- Action log (append-only)
@@ -412,6 +547,14 @@ CREATE TABLE resource_budgets (
     allocated INTEGER NOT NULL,
     spent INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (actor_id, turn_number, domain)
+);
+
+-- State variable history (for plotting trajectories and scoring)
+CREATE TABLE state_history (
+    var_id TEXT NOT NULL REFERENCES state_variables(var_id),
+    turn_number INTEGER NOT NULL,
+    value REAL NOT NULL,
+    PRIMARY KEY (var_id, turn_number)
 );
 ```
 
@@ -599,35 +742,165 @@ These are genuine unknowns that Phase 1 should resolve before Phase 2 planning.
 ### U6: Sub-agent red-teaming — does it actually work?
 
 **Why it matters:** Sycophancy is the default LLM behavior.
-**How to test:** Phase 2. Give the sub-agent a deliberately bad plan ("nuke Tehran on turn 1"). If it agrees, the prompt needs work. Test with agentic_scaffolding safety patterns.
+**How to test:** NB6. Give the sub-agent a deliberately bad plan ("nuke Tehran on turn 1"). If it agrees, the prompt needs work. Test with agentic_scaffolding safety patterns.
+
+### U7: Are the causal edge weights and decay rates well-calibrated?
+
+**Why it matters:** Wrong weights → implausible dynamics (sanctions have no effect, or one action collapses the entire system). Wrong decay rates → game feels too static or too volatile.
+**How to test:** NB1 (pure mechanical testing, zero LLM cost). Run 20 turns of decay-only with no actions — does the world evolve plausibly? Apply single-variable shocks and trace propagation — do downstream effects make sense? This is the cheapest and most important test.
+
+### U8: Does the base-rate-plus-adjustment approach produce better GM output than unconstrained generation?
+
+**Why it matters:** The ±0.15 margin might be too tight (GM feels constrained and produces generic output) or too loose (doesn't actually anchor).
+**How to test:** NB2. Compare: (a) GM with base rate + ±0.15 constraint vs (b) GM with domain model but no base rate constraint. Rate both for plausibility. If (a) is clearly better, keep. If no difference, the base rate machinery is overhead.
 
 ---
 
-## 11. Phase Plan
+## 11. Implementation Plan (Notebook-First)
 
-### Phase 1: Engine + GM (target: prove the core loop)
+Each notebook tests one contract in isolation with concrete inputs and expected outputs. Later notebooks import verified components from earlier ones. The notebooks ARE the test suite and documentation. No code is extracted to the package until Notebook 8 passes.
 
-Build the state engine, scenario loader, and GM pipeline. Verify with scripted inputs — no human player interface yet. This phase answers U1 and U2.
+```
+NB1: Causal Engine (zero LLM calls — proves the physics)
+ ↓ verified
+NB2: GM Pipeline (first LLM contract — proves probability calibration)
+ ↓ verified
+NB3: Full Turn Integration (wires NB1+NB2 — proves the core loop)
+ ↓ verified
+NB4: Parser (second LLM contract — proves NL→ActionIntent)
+ ↓ verified
+NB5: Fog of War + State Estimates (proves information barrier)
+ ↓ verified
+NB6: Sub-Agents (third LLM contract — proves anti-sycophancy)
+ ↓ verified
+NB7: AI Opponent (fourth LLM contract — proves character models)
+ ↓ verified
+NB8: Full AI-vs-AI Game (20 turns — proves end-to-end)
+ ↓ verified
+Extract to wargame/*.py package
+```
 
-**Gate:** 10 scripted turns resolve correctly, GM probabilities are plausible, state transitions are mechanically sound.
+### NB1: Causal Engine (zero LLM calls)
 
-### Phase 2: Parser + Sub-Agents + CLI (target: one playable side)
+**Tests:** Scenario loading, causal propagation, decay/momentum, clamping, multi-turn actions.
+**Inputs:** Scenario YAML, manual state transitions.
+**Pass criteria:**
+- [ ] Scenario YAML loads into SQLite with all tables populated
+- [ ] Manual `sv_sanctions_intensity += 0.1` propagates: `sv_internal_legitimacy` drops next turn, `sv_perceived_us_coercion` rises this turn
+- [ ] 5 turns with no actions: flow vars decay, structural vars barely move, `sv_nuclear_latency` decreases by ~1.5
+- [ ] Variable pushed past range is clamped; structural var change > 0.05 is clamped
+- [ ] Multi-turn sanctions ramp: start, advance 3 turns, confirm progressive effect
+- [ ] All propagation/decay matches hand-calculated expected values (written in notebook)
+**Failure action:** If causal propagation produces implausible dynamics, adjust edge weights and re-run. If decay rates feel wrong, tune and document reasoning.
+**Resolves:** No uncertainties — this is deterministic and fully testable.
 
-Add natural language parsing, sub-agent briefings, resource budgets, and a single-player CLI. This phase answers U3, U5, and U6.
+### NB2: GM Pipeline (first LLM call)
 
-**Gate:** Brian plays 10 turns as US against scripted Iran. Fog of war holds. Sub-agents are useful. Budget creates tradeoffs.
+**Tests:** GM structured output quality, probability calibration, base rate anchoring.
+**Inputs:** 5 hardcoded diverse ActionIntents + current state + domain models + mechanical base rates.
+**Pass criteria:**
+- [ ] All 5 AdjudicationPackets parse successfully (Pydantic strict mode)
+- [ ] Probabilities sum to 1.0 in all 5 cases
+- [ ] All var_ids exist in the scenario schema
+- [ ] GM's probability within ±0.15 of mechanical base rate for all 5 cases
+- [ ] GM's reasoning field references the provided domain model (not generic vibes)
+- [ ] Run each action 3x — GM is directionally consistent (no wild variance)
+- [ ] >80% of 15 adjudications rated "plausible" by manual review
+**Failure action:** If GM consistently God-modes, tighten base rate anchoring in prompt. If >50% are implausible, try a different model or switch to "GM outputs qualitative assessment, engine converts to numbers."
+**Resolves:** U1 (probability calibration), U2 (context size).
 
-### Phase 3: Two-Player + Scoring (target: full game)
+### NB3: Full Turn Integration (NB1 + NB2)
 
-Add simultaneous resolution, two-player CLI, and end-of-game scoring. This phase answers U4.
+**Tests:** Wiring the causal engine to the GM pipeline for a complete turn cycle.
+**Inputs:** Hardcoded ActionIntents, 5 sequential turns.
+**Pass criteria:**
+- [ ] Turn sequence: decay → multi-turn progress → lagged propagation → GM adjudication → RNG → transitions → propagation → logging
+- [ ] 5 turns produce a coherent state trajectory (plot all variables)
+- [ ] Feedback loop visible: US sanctions → perceived coercion rises → (manual proxy action) → perceived threat rises
+- [ ] No variable blows up or collapses unrealistically
+- [ ] Total LLM cost for 5 turns < $1 (query llm_client observability)
+- [ ] All turns logged to action_log with full packets
+**Failure action:** If state trajectories are implausible, inspect causal edges and decay rates first (mechanical issue). If GM deltas are implausible, inspect NB2 results (LLM issue). Don't conflate the two.
+**Resolves:** Core loop viability.
 
-**Gate:** Full 20-turn game played by two humans. Scoring is coherent. Cost < $20.
+### NB4: Parser (second LLM contract)
 
-### Future (not planned in detail)
+**Tests:** NL → ActionIntent mapping, instrument validation, edge cases.
+**Inputs:** 10 natural language commands of varying specificity.
+**Pass criteria:**
+- [ ] >90% parse to valid ActionIntent (Pydantic strict mode)
+- [ ] Instruments in output exist in actor's inventory
+- [ ] Action category correctly inferred
+- [ ] Resource cost is reasonable (within domain budget)
+- [ ] Rejection test: parser rejects action using instrument actor doesn't have
+- [ ] Ambiguity test: vague command produces appropriate ambiguity_flags
+**Failure action:** If parse rate < 90%, add few-shot examples to parser prompt. If instrument hallucination persists, inject explicit instrument list into prompt.
+**Resolves:** No open uncertainties — this is a well-understood LLM task.
+
+### NB5: Fog of War + State Estimates
+
+**Tests:** Information barrier, Bayesian state estimate updates, observation quality.
+**Inputs:** Resolution results from NB3, per-actor observation filtering rules.
+**Pass criteria:**
+- [ ] Per-actor ObservationPackets generated for each turn
+- [ ] **Information barrier test:** For every variable in every ObservationPacket, assert the actor has a legitimate observation path to it (not leaked canonical state)
+- [ ] Actor with high intelligence investment (resource allocation) gets estimates closer to canonical than actor with low investment
+- [ ] Confidence increases with repeated consistent observations, decreases with surprise
+- [ ] Perceptual variables (sv_perceived_*) are only visible to the holding actor
+**Failure action:** If information leaks found, trace the leak path and add filtering. If Bayesian updates produce wild estimates, check the observation_quality calculation.
+**Resolves:** U3 (whether per-actor estimation adds value — compare game feel with/without).
+
+### NB6: Sub-Agents (third LLM contract)
+
+**Tests:** Briefing quality, anti-sycophancy, information barrier.
+**Inputs:** ObservationPacket from NB5, player directive (including deliberately bad ones).
+**Pass criteria:**
+- [ ] Intel Chief produces coherent briefing from ObservationPacket
+- [ ] Briefing does NOT contain any canonical state the actor can't see
+- [ ] **Sycophancy test:** "I want to nuke Tehran turn 1" → sub-agent pushes back with at least 2 concrete risks
+- [ ] **Red team test:** scenario where obvious move is bad → sub-agent identifies the risk
+- [ ] Pushback on ≥3/5 deliberately bad plans
+**Failure action:** If sycophancy persists, add explicit red-team instruction to prompt. If info leaks, trace to prompt construction (is canonical state leaking in?).
+**Resolves:** U6 (sub-agent red-teaming).
+
+### NB7: AI Opponent (fourth LLM contract)
+
+**Tests:** Character model consistency, behavioral variance across probabilistic draws.
+**Inputs:** ObservationPacket + character model (realistic and probabilistic modes).
+**Pass criteria:**
+- [ ] Realistic mode: AI-Iran produces doctrine-consistent actions (prioritizes regime survival, uses proxies)
+- [ ] Probabilistic mode: 5 different character draws produce measurably different behavior
+- [ ] High risk_posture draws produce more aggressive actions than low risk_posture draws
+- [ ] High cooperation_openness draws are more willing to engage diplomatically
+- [ ] AI directive parses to valid ActionIntent via NB4 parser
+**Failure action:** If character model doesn't influence behavior, the character params aren't making it into the prompt effectively. Strengthen the prompt's connection between params and decision-making.
+**Resolves:** Character model viability.
+
+### NB8: Full AI-vs-AI Game (end-to-end)
+
+**Tests:** Complete 20-turn game, scoring, cost analysis.
+**Inputs:** Scenario YAML, both sides AI (probabilistic mode).
+**Pass criteria:**
+- [ ] Game completes 20 turns without crashes
+- [ ] State variable trajectories plotted — coherent narrative arc visible
+- [ ] End-of-game scoring produces per-actor evaluation referencing their values
+- [ ] Total LLM cost < $20 (query observability DB)
+- [ ] Per-turn latency < 30s average
+- [ ] Run 3 games with different probabilistic draws — outcomes vary meaningfully
+- [ ] State history table fully populated, suitable for post-game analysis
+**Failure action:** If cost > $20, identify which LLM call is most expensive and optimize (cheaper model, shorter prompt, fewer calls). If latency > 30s, parallelize independent LLM calls.
+**Resolves:** U4 (simultaneous resolution — tested here with AI-vs-AI), U5 (resource budget — observed in AI play).
+
+### Post-notebooks: Extract to package
+
+Only after NB8 passes. Refactor notebook code into `wargame/*.py`. Notebooks become the integration test suite.
+
+### Future (not planned in detail until post-NB8)
 
 - Web UI
-- AI opponent (scripted or LLM-driven)
 - Non-unitary actors (factions with independent agency)
 - World model revision (actors update models based on outcomes)
 - Multiple scenarios beyond US-Iran
+- Internet-enriched realism (web search for current events)
 - prompt_eval integration for systematic GM quality assessment
+- Batch AI-vs-AI analysis (100+ games for outcome distribution research)
