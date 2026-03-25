@@ -1,0 +1,210 @@
+meta:
+  name: "US-Iran Crisis 2026"
+  turns: 20
+  time_per_turn: "1 month"
+  description: "A US-Iran strategic crisis scenario. The US seeks to prevent nuclear breakout and maintain regional stability. Iran seeks regime survival, sovereignty, and regional influence."
+
+actors:
+  - id: actor_us
+    name: "United States"
+    type: state
+    values:
+      - {id: val_us_stability, name: "Regional system stability", weight: 0.30}
+      - {id: val_us_nonprolif, name: "Nuclear nonproliferation", weight: 0.35}
+      - {id: val_us_ally_security, name: "Allied security", weight: 0.25}
+      - {id: val_us_credibility, name: "US credibility", weight: 0.10}
+    classification_rules:
+      - {subject: "sanctions", category: "legitimate enforcement tool"}
+      - {subject: "proxy warfare", category: "destabilizing aggression"}
+      - {subject: "nuclear enrichment", category: "proliferation threat"}
+      - {subject: "military posturing", category: "deterrence signaling"}
+    character:
+      risk_posture: 0.4
+      ideological_weight: 0.2
+      escalation_threshold: 0.6
+      cooperation_openness: 0.5
+    instruments:
+      - {id: inst_us_sanctions, midfield: [finance, economic, legal], target_vars: [sv_sanctions_intensity]}
+      - {id: inst_us_cyber, midfield: [intelligence, military], target_vars: [sv_nuclear_latency]}
+      - {id: inst_us_diplomacy, midfield: [diplomacy], target_vars: [sv_alliance_credibility, sv_diplomatic_engagement]}
+      - {id: inst_us_force_posture, midfield: [military], target_vars: [sv_force_posture, sv_military_tension]}
+      - {id: inst_us_intel, midfield: [intelligence], target_vars: [sv_perceived_iran_threat]}
+      - {id: inst_us_information, midfield: [information], target_vars: [sv_internal_legitimacy]}
+
+  - id: actor_iran
+    name: "Islamic Republic of Iran"
+    type: state
+    values:
+      - {id: val_iran_survival, name: "Regime survival", weight: 0.40}
+      - {id: val_iran_dignity, name: "National dignity and sovereignty", weight: 0.25}
+      - {id: val_iran_regional, name: "Regional influence", weight: 0.20}
+      - {id: val_iran_economic, name: "Economic viability", weight: 0.15}
+    classification_rules:
+      - {subject: "sanctions", category: "coercive economic warfare"}
+      - {subject: "proxy support", category: "legitimate regional self-defense"}
+      - {subject: "nuclear enrichment", category: "sovereign right and deterrence insurance"}
+      - {subject: "military posturing", category: "aggressive threat"}
+    character:
+      risk_posture: 0.5
+      ideological_weight: 0.6
+      escalation_threshold: 0.5
+      cooperation_openness: 0.3
+    instruments:
+      - {id: inst_iran_proxies, midfield: [military, intelligence], target_vars: [sv_proxy_network_presence, sv_proxy_activity]}
+      - {id: inst_iran_nuclear, midfield: [military], target_vars: [sv_nuclear_latency]}
+      - {id: inst_iran_diplomacy, midfield: [diplomacy], target_vars: [sv_diplomatic_engagement]}
+      - {id: inst_iran_sanctions_evasion, midfield: [finance, economic], target_vars: [sv_sanctions_intensity]}
+      - {id: inst_iran_missile_signaling, midfield: [military, information], target_vars: [sv_deterrence_balance, sv_military_tension]}
+      - {id: inst_iran_information, midfield: [information], target_vars: [sv_internal_legitimacy]}
+
+domain_models:
+  - id: dm_sanctions_pressure
+    subtype: transition
+    description: "Escalating sanctions creates internal economic stress and regime pressure, but effect is reduced by evasion channels and depends on elite cohesion."
+    key_variables: [sv_sanctions_intensity, sv_internal_legitimacy, sv_elite_cohesion]
+    base_rates: {strong_effect: 0.25, moderate_effect: 0.40, weak_effect: 0.35}
+
+  - id: dm_deterrence_dynamics
+    subtype: transition
+    description: "Credible military threat deters escalation, but overdeployment can provoke rather than deter. Effectiveness depends on force posture relative to adversary perception."
+    key_variables: [sv_military_tension, sv_deterrence_balance, sv_force_posture, sv_perceived_iran_threat]
+    base_rates: {deters: 0.40, no_effect: 0.35, provokes: 0.25}
+
+  - id: dm_proxy_deterrence
+    subtype: transition
+    description: "Proxy network depth raises intervention costs for adversaries, providing asymmetric deterrence. But proxy activity also raises escalation risk."
+    key_variables: [sv_proxy_network_presence, sv_proxy_activity, sv_deterrence_balance, sv_regional_depth]
+    base_rates: {deters: 0.35, neutral: 0.30, escalates: 0.35}
+
+  - id: dm_nuclear_latency
+    subtype: transition
+    description: "Nuclear hedging provides insurance against regime change but provokes adversary pressure. Breakout timeline is a function of technical capacity and international monitoring."
+    key_variables: [sv_nuclear_latency, sv_regime_survival_risk, sv_military_tension]
+    base_rates: {}
+
+  - id: dm_covert_ops
+    subtype: transition
+    description: "Covert operations are high-friction, low-probability. Success depends on intelligence penetration, target hardening, and operational security. Attribution risk is always present."
+    key_variables: []
+    base_rates: {critical_success: 0.10, success: 0.20, partial: 0.30, failure: 0.25, critical_failure: 0.15}
+
+  - id: dm_diplomatic_engagement
+    subtype: transition
+    description: "Diplomatic initiatives require sustained engagement and credible offers. Effectiveness depends on alliance credibility, willingness to make concessions, and domestic political space."
+    key_variables: [sv_diplomatic_engagement, sv_alliance_credibility]
+    base_rates: {breakthrough: 0.10, progress: 0.30, stall: 0.40, backlash: 0.20}
+
+state_variables:
+  # Value-adjacent
+  - {id: sv_regime_survival_risk, type: flow, domain: political, timescale: medium, range: [0, 1]}
+  - {id: sv_us_credibility, type: positional, domain: political, timescale: slow, range: [0, 1]}
+
+  # Security
+  - {id: sv_nuclear_latency, type: positional, domain: security, timescale: slow, range: [0, 36], unit: "months to breakout"}
+  - {id: sv_deterrence_balance, type: positional, domain: security, timescale: medium, range: [-1, 1]}
+  - {id: sv_military_tension, type: flow, domain: security, timescale: fast, range: [0, 1]}
+  - {id: sv_force_posture, type: structural, domain: security, timescale: slow, range: [0, 1]}
+  - {id: sv_proxy_network_presence, type: structural, domain: security, timescale: slow, range: [0, 1]}
+  - {id: sv_proxy_activity, type: flow, domain: security, timescale: fast, range: [0, 1]}
+  - {id: sv_regional_depth, type: positional, domain: security, timescale: medium, range: [0, 1]}
+
+  # Economic/political
+  - {id: sv_sanctions_intensity, type: flow, domain: economic, timescale: medium, range: [0, 1]}
+  - {id: sv_internal_legitimacy, type: positional, domain: political, timescale: slow, range: [0, 1]}
+  - {id: sv_elite_cohesion, type: positional, domain: political, timescale: medium, range: [0, 1]}
+  - {id: sv_alliance_credibility, type: positional, domain: political, timescale: medium, range: [0, 1]}
+  - {id: sv_diplomatic_engagement, type: flow, domain: political, timescale: fast, range: [0, 1]}
+
+  # Perceptual (per-actor)
+  - {id: sv_perceived_us_coercion, type: perceptual, domain: political, timescale: medium, range: [0, 1], holder: actor_iran}
+  - {id: sv_perceived_iran_threat, type: perceptual, domain: security, timescale: medium, range: [0, 1], holder: actor_us}
+
+initial_state:
+  sv_nuclear_latency: 8.0
+  sv_sanctions_intensity: 0.7
+  sv_proxy_network_presence: 0.65
+  sv_deterrence_balance: 0.1
+  sv_military_tension: 0.4
+  sv_internal_legitimacy: 0.5
+  sv_elite_cohesion: 0.6
+  sv_alliance_credibility: 0.7
+  sv_force_posture: 0.6
+  sv_proxy_activity: 0.3
+  sv_regional_depth: 0.55
+  sv_diplomatic_engagement: 0.2
+  sv_perceived_us_coercion: 0.75
+  sv_perceived_iran_threat: 0.6
+  sv_regime_survival_risk: 0.35
+  sv_us_credibility: 0.65
+
+resource_budget:
+  actor_us:
+    per_turn: 10
+    domains: {military: 3, intelligence: 2, diplomacy: 2, finance: 2, information: 1}
+  actor_iran:
+    per_turn: 6
+    domains: {military: 2, intelligence: 1, diplomacy: 1, finance: 1, information: 1}
+
+causal_edges:
+  # Sanctions effects
+  - {source: sv_sanctions_intensity, target: sv_internal_legitimacy, effect: -0.15, lag: 1}
+  - {source: sv_sanctions_intensity, target: sv_elite_cohesion, effect: -0.08, lag: 2}
+  - {source: sv_sanctions_intensity, target: sv_perceived_us_coercion, effect: 0.25, lag: 0, actor: actor_iran}
+
+  # Proxy effects
+  - {source: sv_proxy_network_presence, target: sv_deterrence_balance, effect: -0.20, lag: 0}
+  - {source: sv_proxy_network_presence, target: sv_regional_depth, effect: 0.15, lag: 0}
+  - {source: sv_proxy_activity, target: sv_military_tension, effect: 0.20, lag: 0}
+  - {source: sv_proxy_activity, target: sv_perceived_iran_threat, effect: 0.30, lag: 0, actor: actor_us}
+
+  # Military dynamics
+  - {source: sv_force_posture, target: sv_deterrence_balance, effect: 0.15, lag: 0}
+  - {source: sv_force_posture, target: sv_military_tension, effect: 0.10, lag: 0}
+  - {source: sv_military_tension, target: sv_regime_survival_risk, effect: 0.10, lag: 0}
+
+  # Diplomatic effects
+  - {source: sv_diplomatic_engagement, target: sv_military_tension, effect: -0.10, lag: 0}
+  - {source: sv_diplomatic_engagement, target: sv_alliance_credibility, effect: 0.05, lag: 1}
+
+  # Internal dynamics
+  - {source: sv_internal_legitimacy, target: sv_regime_survival_risk, effect: -0.20, lag: 0}
+  - {source: sv_elite_cohesion, target: sv_regime_survival_risk, effect: -0.15, lag: 0}
+
+variable_dynamics:
+  sv_military_tension: {decay_rate: -0.05}
+  sv_diplomatic_engagement: {decay_rate: -0.08}
+  sv_proxy_activity: {decay_rate: -0.03}
+  sv_proxy_network_presence: {decay_rate: -0.01}
+  sv_sanctions_intensity: {decay_rate: -0.02}
+  sv_nuclear_latency: {momentum: -0.3}
+  sv_force_posture: {decay_rate: -0.02}
+
+multi_turn_actions:
+  sanctions_ramp:
+    duration: 3
+    resource_cost_per_turn: 2
+    domain: finance
+    target_var: sv_sanctions_intensity
+    effect_per_turn: [0.05, 0.10, 0.15]
+
+  proxy_network_expansion:
+    duration: 4
+    resource_cost_per_turn: 1
+    domain: military
+    target_var: sv_proxy_network_presence
+    effect_per_turn: [0.02, 0.03, 0.03, 0.05]
+
+  diplomatic_initiative:
+    duration: 3
+    resource_cost_per_turn: 2
+    domain: diplomacy
+    target_var: sv_diplomatic_engagement
+    effect_per_turn: [0.10, 0.15, 0.10]
+
+  nuclear_enrichment_acceleration:
+    duration: 6
+    resource_cost_per_turn: 2
+    domain: military
+    target_var: sv_nuclear_latency
+    effect_per_turn: [-0.5, -0.5, -0.5, -0.5, -0.5, -0.5]
+    interruptible: true
