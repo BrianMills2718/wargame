@@ -21,6 +21,16 @@ from wargame.models import (
 )
 
 
+def _format_mechanical_deltas(deltas: dict[str, float] | None) -> str:
+    """Format mechanical deltas for inclusion in GM prompt."""
+    if not deltas:
+        return "None this turn (no mechanical effects applied yet)."
+    lines = []
+    for var_id, delta in sorted(deltas.items()):
+        lines.append(f"  {var_id}: {delta:+.4f}")
+    return "\n".join(lines) + "\nYour deltas are ADDITIONAL to these."
+
+
 def select_relevant_domain_models(
     spec: ScenarioSpec,
     action: ActionIntent,
@@ -93,8 +103,13 @@ def build_gm_messages(
     base_rates: dict[str, float],
     actor_ids: list[str],
     variable_ids: list[str],
+    mechanical_deltas: dict[str, float] | None = None,
 ) -> list[dict[str, str]]:
     """Build the GM system + user messages for adjudication.
+
+    Args:
+        mechanical_deltas: Deltas already applied by the causal engine this turn.
+            The GM's deltas are ADDITIONAL to these (ADR-002).
 
     Returns a list of message dicts suitable for llm_client.call_llm_structured().
     Will be migrated to YAML/Jinja2 templates once the prompt stabilizes.
@@ -127,7 +142,9 @@ RULES:
 8. For observability, specify what EACH actor sees for EACH possible outcome.
 9. The acting actor should generally know they attempted the action. The target actor should see effects proportional to the outcome's observability.
 
-You must output EXACTLY 5 outcomes: critical_success, success, partial, failure, critical_failure."""
+You must output EXACTLY 5 outcomes: critical_success, success, partial, failure, critical_failure.
+
+IMPORTANT (ADR-002): You will see "Mechanical Effects Already Applied This Turn" — these are structural tendencies from the causal graph (e.g., sanctions structurally erode elite cohesion). Your state_transitions are ADDITIONAL to these. If you believe the narrative should countervail a mechanical effect (e.g., "rally around the flag" boosts cohesion despite sanctions), output an explicit countervailing delta and explain why in your reasoning."""
 
     user_prompt = f"""## Action to Adjudicate
 
@@ -146,6 +163,9 @@ Ambiguity flags: {', '.join(action.ambiguity_flags) if action.ambiguity_flags el
 
 ## Mechanical Base Rates (your anchor — justify any deviation)
 {br_text}
+
+## Mechanical Effects Already Applied This Turn
+{_format_mechanical_deltas(mechanical_deltas)}
 
 ## Valid Variable IDs (only use these in state_transitions)
 {', '.join(variable_ids)}

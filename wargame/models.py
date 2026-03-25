@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 # ---------------------------------------------------------------------------
@@ -171,6 +171,14 @@ class AdjudicationPacket(BaseModel):
     reasoning: str = Field(description="GM's chain-of-thought explaining the assessment")
     possible_outcomes: list[OutcomeBranch]
     observability: list[PerActorObservation]
+
+    @model_validator(mode="after")
+    def check_probabilities_sum(self) -> "AdjudicationPacket":
+        """Validate that outcome probabilities sum to ~1.0."""
+        total = sum(o.probability for o in self.possible_outcomes)
+        if abs(total - 1.0) > 0.05:
+            raise ValueError(f"Probabilities sum to {total:.4f}, must be within 0.05 of 1.0")
+        return self
 
 
 class ObservationPacket(BaseModel):

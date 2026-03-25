@@ -179,16 +179,20 @@ def apply_pending_effects(conn: sqlite3.Connection, current_turn: int) -> dict[s
 def advance_multi_turn_actions(conn: sqlite3.Connection, current_turn: int) -> dict[str, float]:
     """Advance all active multi-turn actions by one step.
 
+    Per ADR-002: checks disruption conditions. If the target variable has moved
+    by >0.2 since the action started (due to opponent actions or other dynamics),
+    the remaining effects are halved.
+
     Returns deltas applied.
     """
     deltas: dict[str, float] = {}
 
     rows = conn.execute(
-        "SELECT active_id, action_template, actor_id, current_step, duration, target_var, effects_per_turn, resource_cost_per_turn, domain, completed "
+        "SELECT active_id, action_template, actor_id, current_step, duration, target_var, effects_per_turn, resource_cost_per_turn, domain, completed, started_turn "
         "FROM active_actions WHERE completed=0"
     ).fetchall()
 
-    for active_id, template, actor_id, step, duration, target_var, effects_json, cost, domain, _ in rows:
+    for active_id, template, actor_id, step, duration, target_var, effects_json, cost, domain, _, started_turn in rows:
         effects = json.loads(effects_json)
 
         if step >= len(effects):
@@ -196,8 +200,21 @@ def advance_multi_turn_actions(conn: sqlite3.Connection, current_turn: int) -> d
             conn.execute("UPDATE active_actions SET completed=1 WHERE active_id=?", (active_id,))
             continue
 
-        # Apply this step's effect
-        effect = effects[step]
+        # Disruption check (ADR-002): if target_var has moved significantly since
+        # the action started, halve remaining effects
+        disruption_factor = 1.0
+        start_value = conn.execute(
+            "SELECT value FROM state_history WHERE var_id=? AND turn_number=?",
+            (target_var, started_turn),
+        ).fetchone()
+        if start_value is not None:
+            current_value = get_variable(conn, target_var)
+            drift = abs(current_value - start_value[0])
+            if drift > 0.2:
+                disruption_factor = 0.5
+
+        # Apply this step's effect (potentially disrupted)
+        effect = effects[step] * disruption_factor
         actual = apply_delta(conn, target_var, effect)
         if actual != 0.0:
             deltas[target_var] = deltas.get(target_var, 0.0) + actual
