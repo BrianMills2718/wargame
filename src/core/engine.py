@@ -20,7 +20,7 @@ from src.core.models import (
 )
 from src.core.scenario_loader import load_scenario
 
-DEFAULT_SCENARIO_PATH = Path(__file__).resolve().parents[2] / "scenarios" / "test_scenario.yaml"
+DEFAULT_SCENARIO_PATH = Path(__file__).resolve().parents[2] / "scenarios" / "us_iran.yaml"
 
 
 class RandomSource(Protocol):
@@ -236,12 +236,6 @@ def build_smoke_test_packet() -> AdjudicationPacket:
                         attribute="regime_stability",
                         delta=-2,
                     ),
-                    AttributeChange(
-                        target_type="actor",
-                        target_id="irgc-navy",
-                        attribute="covert_ops_capacity",
-                        delta=3,
-                    ),
                 ],
             )
         ],
@@ -264,6 +258,8 @@ def format_world_state(game_state: WorldState) -> str:
             attributes = ", ".join(
                 f"{attribute}={value}" for attribute, value in sorted(actor.attributes.items())
             )
+            if not attributes:
+                attributes = "no tracked attributes"
             lines.append(f"  - {actor.name} ({actor.entity_id}): {attributes}")
 
     return "\n".join(lines)

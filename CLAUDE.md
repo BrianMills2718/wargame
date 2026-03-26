@@ -39,7 +39,7 @@ semantic translation, psychology, and open-ended action resolution.
 
 ```bash
 python -m pytest tests/ -q          # run tests
-python -m src.core.engine            # run a test turn (when implemented)
+python -m src.core                   # run a test turn through the package CLI
 ```
 
 ## Principles
@@ -54,16 +54,16 @@ python -m src.core.engine            # run a test turn (when implemented)
 
 ## Current State
 
-Phase 1 partially built (3/6 criteria checked in plan):
+Phase 1 partially built (4/6 criteria checked in plan):
 - src/core/models.py — `WorldState`, state entities, and adjudication models
 - src/core/engine.py — turn processing plus fog-of-war observation filtering
 - src/core/scenario_loader.py — JSON/YAML scenario loading into validated world state
-- tests/ — 10 passing pytest cases across engine, observation, and scenario loading
+- src/core/__main__.py — package CLI smoke test loading `scenarios/us_iran.yaml`
+- tests/ — pytest coverage across engine, observation, scenario loading, and CLI smoke execution
 
 Remaining Phase 1 per `docs/plans/01_implementation.md`:
 - State model acceptance item
 - Turn engine acceptance item
-- CLI smoke test
 
 ## References
 

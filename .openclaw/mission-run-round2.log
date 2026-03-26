@@ -1,0 +1,32 @@
+INFO: Reading project goals...
+INFO: Reading ecosystem gaps...
+INFO: Reading active plans...
+INFO: Running hygiene sweep...
+INFO: Reading completed tasks...
+INFO: Calling LLM planner (gemini/gemini-2.5-flash)...
+WARNING: LLM_CLIENT_TIMEOUT_POLICY=ban (first observed in call_llm_structured)
+WARNING: TIMEOUT_DISABLED[call_llm_structured]: timeout=60s ignored (set LLM_CLIENT_TIMEOUT_POLICY=allow to re-enable).
+[92m05:37:02 - LiteLLM:INFO[0m: utils.py:3995 - 
+LiteLLM completion() model= gemini-2.5-flash; provider = gemini
+INFO: 
+LiteLLM completion() model= gemini-2.5-flash; provider = gemini
+[92m05:37:08 - LiteLLM:INFO[0m: utils.py:1656 - Wrapper: Completed Call, calling success_handler
+INFO: Wrapper: Completed Call, calling success_handler
+INFO: Generated 3 tasks (cost: $0.0025)
+INFO: Wrote task: /home/brian/projects/wargame/.openclaw/openclaw-missions/wargame-round2/tasks/pending/planner-2026-03-26-wargame-cli-smoke-test.md
+INFO: Wrote task: /home/brian/projects/wargame/.openclaw/openclaw-missions/wargame-round2/tasks/pending/planner-2026-03-26-wargame-install-llm-client.md
+INFO: Wrote task: /home/brian/projects/wargame/.openclaw/openclaw-missions/wargame-round2/tasks/pending/planner-2026-03-26-wargame-wire-llm-client-structured-output.md
+INFO: Generated 3 tasks in /home/brian/projects/wargame/.openclaw/openclaw-missions/wargame-round2/tasks/pending
+05:37:40 [INFO] Supervisor dispatch: planner-2026-03-26-wargame-cli-smoke-test.md
+05:37:40 [INFO] === Running task: Implement CLI smoke test for wargame core ===
+05:37:40 [INFO] Agent: codex | Project: /home/brian/projects/wargame | Priority: high
+05:37:40 [INFO] Moved planner-2026-03-26-wargame-cli-smoke-test.md -> active/
+05:37:43 [INFO] Calling codex in /home/brian/projects/wargame (max_turns=25, budget=$2.50, timeout=750s, trace=openclaw.flat.planner-2026-03-26-wargame-cli-smoke-test.1774528663)
+05:37:43 [WARNING] LLM_CLIENT_TIMEOUT_POLICY=ban (first observed in acall_llm)
+05:37:43 [WARNING] TIMEOUT_DISABLED[acall_llm]: timeout=750s ignored (set LLM_CLIENT_TIMEOUT_POLICY=allow to re-enable).
+05:37:43 [WARNING] AGENT_RETRY_DISABLED: retries for agent models are disabled by default to avoid duplicate side effects. Set agent_retry_safe=True (or LLM_CLIENT_AGENT_RETRY_SAFE=1) only for explicitly safe/read-only runs.
+05:48:30 [INFO] Moved planner-2026-03-26-wargame-cli-smoke-test.md -> completed/
+05:48:30 [INFO] Cost: $2.6922 in 644.5s
+05:48:30 [INFO] === Task COMPLETED: Implement CLI smoke test for wargame core ===
+LLM_CLIENT_TIMEOUT_POLICY=ban (first observed in call_llm_structured)
+TIMEOUT_DISABLED[call_llm_structured]: timeout=60s ignored (set LLM_CLIENT_TIMEOUT_POLICY=allow to re-enable).
