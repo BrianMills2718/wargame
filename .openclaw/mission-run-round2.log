@@ -30,3 +30,15 @@ INFO: Generated 3 tasks in /home/brian/projects/wargame/.openclaw/openclaw-missi
 05:48:30 [INFO] === Task COMPLETED: Implement CLI smoke test for wargame core ===
 LLM_CLIENT_TIMEOUT_POLICY=ban (first observed in call_llm_structured)
 TIMEOUT_DISABLED[call_llm_structured]: timeout=60s ignored (set LLM_CLIENT_TIMEOUT_POLICY=allow to re-enable).
+05:49:07 [INFO] Supervisor dispatch: planner-2026-03-26-wargame-cli-smoke-test-retry-1.md
+05:49:07 [INFO] === Running task: Implement CLI smoke test for wargame core ===
+05:49:07 [INFO] Agent: codex | Project: /home/brian/projects/wargame | Priority: high
+05:49:07 [INFO] Moved planner-2026-03-26-wargame-cli-smoke-test-retry-1.md -> active/
+05:49:09 [INFO] Calling codex in /home/brian/projects/wargame (max_turns=25, budget=$2.50, timeout=750s, trace=openclaw.flat.planner-2026-03-26-wargame-cli-smoke-test-retry-1.1774529349)
+05:49:09 [WARNING] LLM_CLIENT_TIMEOUT_POLICY=ban (first observed in acall_llm)
+05:49:09 [WARNING] TIMEOUT_DISABLED[acall_llm]: timeout=750s ignored (set LLM_CLIENT_TIMEOUT_POLICY=allow to re-enable).
+05:49:09 [WARNING] AGENT_RETRY_DISABLED: retries for agent models are disabled by default to avoid duplicate side effects. Set agent_retry_safe=True (or LLM_CLIENT_AGENT_RETRY_SAFE=1) only for explicitly safe/read-only runs.
+05:52:35 [INFO] Moved planner-2026-03-26-wargame-cli-smoke-test-retry-1.md -> completed/
+05:52:35 [INFO] Cost: $1.5053 in 204.0s
+05:52:35 [INFO] === Task COMPLETED: Implement CLI smoke test for wargame core ===
+TIMEOUT_DISABLED[call_llm_structured]: timeout=60s ignored (set LLM_CLIENT_TIMEOUT_POLICY=allow to re-enable).
