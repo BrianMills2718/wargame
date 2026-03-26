@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Geopolitical Wargame</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Courier New', monospace; background: #0a0a0f; color: #c0c0c0; height: 100vh; display: flex; flex-direction: column; }
+
+  header { background: #111118; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #2a2a35; }
+  header h1 { font-size: 16px; color: #e0e0e0; letter-spacing: 2px; }
+  header .status { font-size: 12px; color: #888; }
+  header .turn-badge { background: #1a3a2a; color: #4ade80; padding: 4px 12px; border-radius: 4px; font-size: 13px; font-weight: bold; }
+
+  .main { display: flex; flex: 1; overflow: hidden; }
+
+  /* Left panel — state variables */
+  .panel-left { width: 320px; background: #0d0d14; border-right: 1px solid #2a2a35; overflow-y: auto; padding: 12px; }
+  .panel-left h2 { font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+
+  .var-group { margin-bottom: 16px; }
+  .var-group-title { font-size: 11px; color: #666; text-transform: uppercase; margin-bottom: 6px; border-bottom: 1px solid #1a1a25; padding-bottom: 4px; }
+
+  .var-row { display: flex; align-items: center; margin-bottom: 3px; font-size: 12px; }
+  .var-name { width: 140px; color: #999; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .var-bar-bg { flex: 1; height: 10px; background: #1a1a25; border-radius: 2px; margin: 0 6px; position: relative; }
+  .var-bar { height: 100%; border-radius: 2px; transition: width 0.5s ease; }
+  .var-bar.security { background: #ef4444; }
+  .var-bar.political { background: #3b82f6; }
+  .var-bar.economic { background: #eab308; }
+  .var-bar.perceptual { background: #a855f7; }
+  .var-value { width: 40px; text-align: right; color: #ccc; font-size: 11px; }
+
+  /* Center panel — narrative feed */
+  .panel-center { flex: 1; display: flex; flex-direction: column; }
+
+  .narrative-feed { flex: 1; overflow-y: auto; padding: 16px; }
+  .turn-block { margin-bottom: 20px; border-left: 2px solid #2a2a35; padding-left: 12px; }
+  .turn-header { font-size: 13px; color: #4ade80; font-weight: bold; margin-bottom: 8px; }
+  .mech-deltas { font-size: 11px; color: #666; margin-bottom: 8px; }
+  .action-block { margin-bottom: 10px; }
+  .action-actor { font-size: 12px; font-weight: bold; }
+  .action-actor.us { color: #3b82f6; }
+  .action-actor.iran { color: #ef4444; }
+  .action-intent { font-size: 12px; color: #999; margin: 2px 0; }
+  .action-outcome { font-size: 12px; padding: 4px 8px; border-radius: 3px; margin: 4px 0; }
+  .action-outcome.critical_success { background: #052e16; color: #4ade80; border: 1px solid #166534; }
+  .action-outcome.success { background: #052e16; color: #86efac; border: 1px solid #15803d; }
+  .action-outcome.partial { background: #1a1a00; color: #fde047; border: 1px solid #854d0e; }
+  .action-outcome.failure { background: #1c0a0a; color: #fca5a5; border: 1px solid #991b1b; }
+  .action-outcome.critical_failure { background: #2a0a0a; color: #f87171; border: 1px solid #dc2626; }
+  .action-narrative { font-size: 12px; color: #b0b0b0; margin: 4px 0; line-height: 1.5; }
+
+  .intel-block { margin-top: 8px; padding: 8px; background: #0a0f1a; border: 1px solid #1e3a5f; border-radius: 4px; }
+  .intel-header { font-size: 11px; color: #60a5fa; text-transform: uppercase; margin-bottom: 4px; }
+  .intel-item { font-size: 12px; color: #93c5fd; margin: 2px 0; }
+
+  /* Command input */
+  .command-area { border-top: 1px solid #2a2a35; padding: 12px 16px; background: #0d0d14; }
+  .command-area label { font-size: 11px; color: #888; text-transform: uppercase; display: block; margin-bottom: 4px; }
+  .command-row { display: flex; gap: 8px; }
+  .command-input { flex: 1; background: #111118; border: 1px solid #2a2a35; color: #e0e0e0; padding: 10px 14px; font-family: inherit; font-size: 14px; border-radius: 4px; outline: none; }
+  .command-input:focus { border-color: #4ade80; }
+  .command-input::placeholder { color: #555; }
+  .send-btn { background: #166534; color: #4ade80; border: 1px solid #22c55e; padding: 10px 20px; font-family: inherit; font-size: 13px; cursor: pointer; border-radius: 4px; font-weight: bold; }
+  .send-btn:hover { background: #15803d; }
+  .send-btn:disabled { background: #1a1a25; color: #555; border-color: #2a2a35; cursor: not-allowed; }
+
+  /* Right panel — chart */
+  .panel-right { width: 360px; background: #0d0d14; border-left: 1px solid #2a2a35; padding: 12px; overflow-y: auto; }
+  .panel-right h2 { font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+  .chart-container { margin-bottom: 12px; }
+  .chart-title { font-size: 11px; color: #999; margin-bottom: 4px; }
+  canvas { width: 100% !important; height: 80px !important; }
+
+  /* Start screen */
+  .start-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; }
+  .start-screen h1 { font-size: 24px; color: #e0e0e0; margin-bottom: 8px; letter-spacing: 3px; }
+  .start-screen p { color: #888; margin-bottom: 24px; }
+  .start-options { display: flex; gap: 12px; flex-direction: column; width: 300px; }
+  .start-btn { background: #111118; border: 1px solid #2a2a35; color: #c0c0c0; padding: 14px; font-family: inherit; font-size: 14px; cursor: pointer; border-radius: 4px; text-align: left; }
+  .start-btn:hover { border-color: #4ade80; color: #4ade80; }
+  .start-btn .label { font-weight: bold; display: block; margin-bottom: 4px; }
+  .start-btn .desc { font-size: 11px; color: #666; }
+
+  .loading { color: #eab308; font-size: 13px; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: #0a0a0f; }
+  ::-webkit-scrollbar-thumb { background: #2a2a35; border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>GEOPOLITICAL WARGAME</h1>
+  <div class="status" id="status">Not started</div>
+  <div class="turn-badge" id="turn-badge" style="display:none">TURN 0</div>
+</header>
+
+<div class="main" id="app">
+  <!-- Start screen -->
+  <div class="start-screen" id="start-screen">
+    <h1>WARGAME</h1>
+    <p>Geopolitical crisis simulation</p>
+    <div class="start-options">
+      <button class="start-btn" onclick="startGame('actor_us', 'human_vs_ai')">
+        <span class="label">Play as United States</span>
+        <span class="desc">vs AI Iran — manage sanctions, deterrence, and diplomacy</span>
+      </button>
+      <button class="start-btn" onclick="startGame('actor_iran', 'human_vs_ai')">
+        <span class="label">Play as Iran</span>
+        <span class="desc">vs AI United States — navigate survival, sovereignty, and regional power</span>
+      </button>
+      <button class="start-btn" onclick="startGame('actor_us', 'ai_vs_ai')">
+        <span class="label">Watch AI vs AI</span>
+        <span class="desc">Observe two AI opponents play out the scenario</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Game screen (hidden until start) -->
+  <div class="panel-left" id="panel-left" style="display:none">
+    <h2>Intelligence Estimates</h2>
+    <div id="var-list"></div>
+  </div>
+
+  <div class="panel-center" id="panel-center" style="display:none">
+    <div class="narrative-feed" id="narrative-feed"></div>
+    <div class="command-area" id="command-area">
+      <label id="command-label">Your orders</label>
+      <div class="command-row">
+        <input type="text" class="command-input" id="command-input" placeholder="Enter your directive..." autofocus>
+        <button class="send-btn" id="send-btn" onclick="submitCommand()">EXECUTE</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel-right" id="panel-right" style="display:none">
+    <h2>Variable Trajectories</h2>
+    <div id="charts"></div>
+  </div>
+</div>
+
+<script>
+// State
+let gameState = null;
+let isProcessing = false;
+let turnCount = 0;
+let isAiVsAi = false;
+
+const DOMAIN_COLORS = {
+  security: '#ef4444',
+  political: '#3b82f6',
+  economic: '#eab308',
+  perceptual: '#a855f7',
+};
+
+const VAR_DOMAINS = {
+  sv_nuclear_latency: 'security', sv_deterrence_balance: 'security',
+  sv_military_tension: 'security', sv_force_posture: 'security',
+  sv_proxy_network_presence: 'security', sv_proxy_activity: 'security',
+  sv_regional_depth: 'security',
+  sv_sanctions_intensity: 'economic', sv_internal_legitimacy: 'political',
+  sv_elite_cohesion: 'political', sv_alliance_credibility: 'political',
+  sv_diplomatic_engagement: 'political', sv_regime_survival_risk: 'political',
+  sv_us_credibility: 'political',
+  sv_perceived_us_coercion: 'perceptual', sv_perceived_iran_threat: 'perceptual',
+};
+
+const VAR_RANGES = {
+  sv_nuclear_latency: [0, 36],
+};
+
+async function startGame(playAs, mode) {
+  document.getElementById('start-screen').style.display = 'none';
+  document.getElementById('panel-left').style.display = '';
+  document.getElementById('panel-center').style.display = '';
+  document.getElementById('panel-right').style.display = '';
+  document.getElementById('status').textContent = 'Starting game...';
+  isAiVsAi = mode === 'ai_vs_ai';
+
+  if (isAiVsAi) {
+    document.getElementById('command-area').style.display = 'none';
+  }
+
+  try {
+    const res = await fetch('/api/start', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({scenario_path: 'scenarios/us_iran_2026.yaml', play_as: playAs, mode}),
+    });
+    gameState = await res.json();
+    turnCount = 0;
+
+    document.getElementById('status').textContent = `${gameState.scenario} | ${gameState.actor_names[playAs] || 'Observer'}`;
+    document.getElementById('turn-badge').style.display = '';
+    document.getElementById('turn-badge').textContent = 'TURN 0';
+
+    renderVariables(gameState.estimates);
+    addNarrative({turn: 0, actions: [], observations: {}, mechanical_deltas: {}},
+      `Game started. You are ${gameState.actor_names[playAs] || 'observing'}.`);
+
+    if (isAiVsAi) {
+      runAiVsAi();
+    }
+  } catch (e) {
+    document.getElementById('status').textContent = 'Error: ' + e.message;
+  }
+}
+
+async function runAiVsAi() {
+  const totalTurns = 10;
+  for (let i = 0; i < totalTurns; i++) {
+    await submitCommand('AI auto-play');
+    await new Promise(r => setTimeout(r, 500)); // Brief pause for readability
+  }
+  addSystemMessage('Game complete. AI vs AI finished ' + totalTurns + ' turns.');
+}
+
+async function submitCommand(directive) {
+  if (isProcessing) return;
+
+  const input = document.getElementById('command-input');
+  const cmd = directive || input.value.trim();
+  if (!cmd && !isAiVsAi) return;
+
+  isProcessing = true;
+  const btn = document.getElementById('send-btn');
+  if (btn) btn.disabled = true;
+  if (input) input.value = '';
+  document.getElementById('status').textContent = 'Processing turn...';
+
+  try {
+    const res = await fetch('/api/command', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({directive: cmd}),
+    });
+    const data = await res.json();
+    turnCount = data.turn_result.turn;
+
+    document.getElementById('turn-badge').textContent = `TURN ${turnCount}`;
+    renderVariables(data.estimates);
+    renderCharts(data.history);
+    addNarrative(data.turn_result);
+
+    document.getElementById('status').textContent = gameState.scenario + ` | Turn ${turnCount}`;
+  } catch (e) {
+    document.getElementById('status').textContent = 'Error: ' + e.message;
+  }
+
+  isProcessing = false;
+  if (btn) btn.disabled = false;
+  if (input) input.focus();
+}
+
+function renderVariables(estimates) {
+  const container = document.getElementById('var-list');
+  const groups = {};
+
+  for (const [varId, value] of Object.entries(estimates)) {
+    const domain = VAR_DOMAINS[varId] || 'other';
+    if (!groups[domain]) groups[domain] = [];
+    const range = VAR_RANGES[varId] || [0, 1];
+    const pct = Math.min(100, Math.max(0, ((value - range[0]) / (range[1] - range[0])) * 100));
+    groups[domain].push({varId, value, pct, domain});
+  }
+
+  let html = '';
+  for (const [domain, vars] of Object.entries(groups).sort()) {
+    html += `<div class="var-group"><div class="var-group-title">${domain}</div>`;
+    for (const v of vars.sort((a, b) => a.varId.localeCompare(b.varId))) {
+      const name = v.varId.replace('sv_', '').replace(/_/g, ' ');
+      html += `<div class="var-row">
+        <span class="var-name" title="${v.varId}">${name}</span>
+        <div class="var-bar-bg"><div class="var-bar ${v.domain}" style="width:${v.pct}%"></div></div>
+        <span class="var-value">${v.value.toFixed(2)}</span>
+      </div>`;
+    }
+    html += '</div>';
+  }
+  container.innerHTML = html;
+}
+
+function renderCharts(history) {
+  const container = document.getElementById('charts');
+  let html = '';
+
+  const keyVars = ['sv_military_tension', 'sv_sanctions_intensity', 'sv_nuclear_latency',
+    'sv_deterrence_balance', 'sv_regime_survival_risk', 'sv_proxy_activity'];
+
+  for (const varId of keyVars) {
+    if (!history[varId]) continue;
+    const points = history[varId];
+    const range = VAR_RANGES[varId] || [0, 1];
+    const domain = VAR_DOMAINS[varId] || 'other';
+    const color = DOMAIN_COLORS[domain] || '#888';
+    const name = varId.replace('sv_', '').replace(/_/g, ' ');
+
+    // SVG sparkline
+    const w = 320, h = 60, pad = 4;
+    const maxTurn = Math.max(points[points.length - 1].turn, 1);
+    const pathParts = points.map((p, i) => {
+      const x = pad + (p.turn / maxTurn) * (w - 2 * pad);
+      const y = h - pad - ((p.value - range[0]) / (range[1] - range[0])) * (h - 2 * pad);
+      return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
+    }).join(' ');
+
+    const lastVal = points[points.length - 1].value;
+    html += `<div class="chart-container">
+      <div class="chart-title">${name}: ${lastVal.toFixed(2)}</div>
+      <svg width="${w}" height="${h}" style="background:#111118;border-radius:4px;">
+        <path d="${pathParts}" fill="none" stroke="${color}" stroke-width="2"/>
+      </svg>
+    </div>`;
+  }
+  container.innerHTML = html;
+}
+
+function addNarrative(turnResult, systemMsg) {
+  const feed = document.getElementById('narrative-feed');
+
+  let html = `<div class="turn-block"><div class="turn-header">Turn ${turnResult.turn}</div>`;
+
+  if (systemMsg) {
+    html += `<div class="action-narrative">${systemMsg}</div>`;
+  }
+
+  // Mechanical deltas
+  const mechEntries = Object.entries(turnResult.mechanical_deltas || {});
+  if (mechEntries.length > 0) {
+    html += '<div class="mech-deltas">World dynamics: ';
+    html += mechEntries.map(([k, v]) => `${k.replace('sv_', '')} ${v > 0 ? '+' : ''}${v.toFixed(3)}`).join(', ');
+    html += '</div>';
+  }
+
+  // Actions
+  for (const action of (turnResult.actions || [])) {
+    const side = action.actor_id.includes('us') ? 'us' : 'iran';
+    html += `<div class="action-block">
+      <div class="action-actor ${side}">${action.actor} [${action.category}]</div>
+      <div class="action-intent">${action.intent}</div>
+      <div class="action-outcome ${action.outcome}">${action.outcome.replace('_', ' ').toUpperCase()}</div>
+      <div class="action-narrative">${action.narrative}</div>
+    </div>`;
+  }
+
+  // Intel briefing
+  const humanObs = turnResult.observations?.[gameState?.play_as];
+  if (humanObs && humanObs.length > 0) {
+    html += `<div class="intel-block"><div class="intel-header">Intelligence Briefing</div>`;
+    for (const obs of humanObs) {
+      html += `<div class="intel-item">${obs}</div>`;
+    }
+    html += '</div>';
+  }
+
+  html += '</div>';
+  feed.innerHTML += html;
+  feed.scrollTop = feed.scrollHeight;
+}
+
+function addSystemMessage(msg) {
+  const feed = document.getElementById('narrative-feed');
+  feed.innerHTML += `<div class="turn-block"><div class="turn-header" style="color:#eab308">${msg}</div></div>`;
+  feed.scrollTop = feed.scrollHeight;
+}
+
+// Enter key to submit
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    const input = document.getElementById('command-input');
+    if (document.activeElement === input) {
+      e.preventDefault();
+      submitCommand();
+    }
+  }
+});
+</script>
+</body>
+</html>
