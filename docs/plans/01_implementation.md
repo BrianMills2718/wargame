@@ -59,7 +59,7 @@ Wire the GM LLM that translates natural language actions into adjudication packe
 
 ### Acceptance Criteria
 
-- [ ] **GM prompt + schema**: System prompt for the GM LLM with Pydantic
+- [x] **GM prompt + schema**: System prompt for the GM LLM with Pydantic
   `AdjudicationPacket` schema. GM receives: current world state (thin spine
   values), player action (natural language), and outputs structured JSON.
 - [ ] **Probability baselines**: GM prompt includes friction rules — no covert

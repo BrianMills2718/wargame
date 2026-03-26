@@ -56,3 +56,24 @@ TIMEOUT_DISABLED[call_llm_structured]: timeout=60s ignored (set LLM_CLIENT_TIMEO
 05:58:08 [INFO] Cost: $3.4339 in 294.9s
 05:58:08 [INFO] === Task COMPLETED: Install llm_client in the wargame environment ===
 TIMEOUT_DISABLED[call_llm_structured]: timeout=60s ignored (set LLM_CLIENT_TIMEOUT_POLICY=allow to re-enable).
+TIMEOUT_DISABLED[call_llm_structured]: timeout=60s ignored (set LLM_CLIENT_TIMEOUT_POLICY=allow to re-enable).
+05:58:43 [INFO] Supervisor dispatch: planner-2026-03-26-wargame-install-llm-client-retry-1.md
+05:58:43 [WARNING] Daily budget exceeded ($22.20 of $20.00). Skipping.
+05:59:14 [INFO] Supervisor dispatch: planner-2026-03-26-wargame-install-llm-client-retry-1.md
+05:59:14 [WARNING] Daily budget exceeded ($22.20 of $20.00). Skipping.
+05:59:46 [INFO] Supervisor dispatch: planner-2026-03-26-wargame-install-llm-client-retry-1.md
+05:59:46 [WARNING] Daily budget exceeded ($22.20 of $20.00). Skipping.
+06:00:17 [INFO] Supervisor dispatch: planner-2026-03-26-wargame-install-llm-client-retry-1.md
+06:00:17 [WARNING] Daily budget exceeded ($22.20 of $20.00). Skipping.
+06:00:49 [INFO] Supervisor dispatch: planner-2026-03-26-wargame-install-llm-client-retry-1.md
+06:00:49 [WARNING] Daily budget exceeded ($22.20 of $20.00). Skipping.
+Loaded mission 'wargame-round2' for /home/brian/projects/wargame
+Model gaps: none
+Model gaps: none
+Model gaps: none
+Model gaps: none
+Model gaps: none
+Model gaps: none
+Model gaps: none
+Model gaps: none
+Mission 'wargame-round2' stopped with escalation; see /home/brian/projects/wargame/.openclaw/openclaw-missions/wargame-round2/tasks/mission.jsonl
