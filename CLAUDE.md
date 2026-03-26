@@ -3,6 +3,25 @@
 LLM-driven geopolitical simulation where players issue natural language directives,
 AI sub-agents act as a bureaucracy, and a programmatic core enforces physics.
 
+## AUTONOMOUS EXECUTION DIRECTIVE
+
+**This project is under continuous autonomous development. DO NOT STOP.**
+
+When working on this project:
+1. Read `docs/plans/01_implementation.md` and find the next unchecked acceptance criterion
+2. Implement it fully with tests
+3. Run `python -m pytest tests/ -q` to verify
+4. Commit with `[Plan #1]` prefix
+5. Move to the next criterion. DO NOT STOP between criteria.
+6. If blocked, log the blocker in a `## Blockers` section of the plan file and move
+   to the next unblocked criterion. NEVER STOP for uncertainty — log it and continue.
+7. When all Phase N criteria are checked, move to Phase N+1.
+8. Continue through all 5 phases until the game is playable.
+
+**Error handling**: If tests fail, fix them. If an approach doesn't work, try another.
+After 3 failed attempts at the same criterion, log it as blocked and move on.
+Do not ask for human input. Make reasonable decisions and document them.
+
 ## Architecture
 
 Hybrid model: **Programmatic Core** (Python) for rigid physics + **LLMs** for
@@ -31,10 +50,20 @@ python -m src.core.engine            # run a test turn (when implemented)
 - **RNG friction** — no covert action >60% success without overwhelming capability
 - **Fog of war** — players see filtered observations, never raw state
 - **Fail loud** — invalid LLM output raises, doesn't silently degrade
+- **Commit early and often** — every passing test suite gets a commit
 
-## In Progress
+## Current State
 
-- Phase 1: Programmatic core (state model, turn engine, adjudication)
+Phase 1 partially built (2/6 criteria done):
+- src/core/models.py — WorldState, Nation, Actor, AdjudicationPacket, TurnResult (180 lines)
+- src/core/engine.py — TurnEngine with RNG adjudication (118 lines)
+- tests/test_turn_engine.py — 6 tests passing (180 lines)
+
+Remaining Phase 1:
+- Observation filter (fog of war)
+- Scenario loader (YAML)
+- 4+ more tests (need 10+ total)
+- CLI smoke test
 
 ## References
 

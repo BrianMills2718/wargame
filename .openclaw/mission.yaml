@@ -1,30 +1,32 @@
-# OpenClaw Mission: Wargame Phase 1 — Programmatic Core
-# This is a validation run (2-cycle limit) to test mission runner plumbing.
+# OpenClaw Mission: Wargame — Full Implementation
+# Continuous autonomous run. Budget: $50. No cycle limit.
 
-mission_id: wargame-phase1-core
+mission_id: wargame-full-implementation
 project_root: ~/projects/wargame
 
 objective: |
   You are building a geopolitical wargame at ~/projects/wargame.
 
-  The plan is docs/plans/01_implementation.md. You are working on Phase 1
-  (Programmatic Core). Read the plan and generate tasks ONLY for unchecked
-  Phase 1 acceptance criteria.
+  The plan is docs/plans/01_implementation.md. Work through ALL FIVE PHASES
+  sequentially. For each phase, read the unchecked acceptance criteria and
+  generate tasks to implement them.
 
-  Phase 1 is pure Python — no LLM calls. Build:
-  1. Pydantic state models (WorldState, Nation, Actor, thin-spine dictionary)
-  2. TurnEngine that processes AdjudicationPackets and updates state via RNG
-  3. Observation filter (fog of war — players see filtered results only)
-  4. Scenario loader (YAML → initial WorldState)
-  5. Test suite (10+ tests)
-  6. CLI smoke test
+  DO NOT STOP between phases. When Phase N criteria are all met, move to Phase N+1.
+  If blocked on a criterion, log the blocker and move to the next one.
+
+  Current state: Phase 1 is partially built (models.py, engine.py, 6 tests).
+  Remaining Phase 1 work: observation filter, scenario loader, 4+ more tests, CLI smoke test.
+
+  After Phase 1: Phase 2 (GM LLM), Phase 3 (Sub-agents), Phase 4 (Game loop),
+  Phase 5 (Scoring + balance).
 
   RULES:
   - Set project to "~/projects/wargame" and model to "codex" in every task
-  - Each task must cite which Phase 1 acceptance criterion it advances
+  - Each task must cite which acceptance criterion it advances
   - Run pytest before committing. Commit with [Plan #1] prefix.
   - Do NOT generate meta-tasks (docs, policies, refactoring)
-  - Do NOT work on Phase 2+ (no LLM calls in Phase 1)
+  - If blocked after 3 attempts, log blocker and move to next criterion
+  - Install llm_client in the venv when Phase 2 starts: pip install -e ~/projects/llm_client
 
 planner:
   enabled: true
@@ -32,20 +34,42 @@ planner:
   max_tasks_per_cycle: 4
 
 policy:
-  max_consecutive_failures: 3
-  max_cycles: 2
-  max_replans: 1
-  max_idle_cycles: 2
-  max_cost_usd: 15.0
+  max_consecutive_failures: 5
+  max_cycles: 0
+  max_replans: 50
+  max_idle_cycles: 3
+  max_cost_usd: 50.0
   poll_interval_s: 30
 
 success_criteria:
-  - type: command
-    command: ["python", "-m", "pytest", "tests/", "-q"]
-    description: All tests pass
+  # Phase 1
   - type: file_exists
     path: src/core/models.py
     description: State models exist
   - type: file_exists
     path: src/core/engine.py
     description: Turn engine exists
+  - type: file_exists
+    path: src/core/observation.py
+    description: Observation filter exists
+  - type: file_exists
+    path: scenarios/us_iran.yaml
+    description: Scenario file exists
+  - type: command
+    command: ["python", "-m", "pytest", "tests/", "-q", "--tb=no"]
+    description: All tests pass
+  # Phase 2
+  - type: file_exists
+    path: prompts/game_master.yaml
+    description: GM prompt template exists
+  - type: file_exists
+    path: src/gm/__init__.py
+    description: GM module exists
+  # Phase 3
+  - type: file_exists
+    path: src/agents/__init__.py
+    description: Sub-agent module exists
+  # Phase 4
+  - type: file_exists
+    path: src/game_loop.py
+    description: Game loop exists
