@@ -119,7 +119,9 @@ def _call_llm(
     messages: list[dict[str, str]],
     *,
     response_format: dict[str, Any],
-    **kwargs: Any,
+    task: str,
+    trace_id: str,
+    max_budget: float,
 ) -> Any:
     """Import and invoke the shared llm_client with provider-compatible schema shape."""
 
@@ -129,7 +131,9 @@ def _call_llm(
         model,
         messages,
         response_format=_llm_client_response_format(response_format),
-        **kwargs,
+        task=task,
+        trace_id=trace_id,
+        max_budget=max_budget,
     )
 
 

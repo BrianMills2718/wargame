@@ -1,2 +1,16 @@
 LLM_CLIENT_TIMEOUT_POLICY=ban (first observed in call_llm_structured)
 TIMEOUT_DISABLED[call_llm_structured]: timeout=60s ignored (set LLM_CLIENT_TIMEOUT_POLICY=allow to re-enable).
+TIMEOUT_DISABLED[call_llm_structured]: timeout=60s ignored (set LLM_CLIENT_TIMEOUT_POLICY=allow to re-enable).
+TIMEOUT_DISABLED[call_llm_structured]: timeout=60s ignored (set LLM_CLIENT_TIMEOUT_POLICY=allow to re-enable).
+06:50:12 [INFO] Supervisor dispatch: planner-2026-03-26-wargame-gm-llm-client-integration-retry-2.md
+06:50:12 [INFO] === Running task: Integrate llm_client for GM Adjudication ===
+06:50:12 [INFO] Agent: codex | Project: /home/brian/projects/wargame | Priority: high
+06:50:12 [INFO] Moved planner-2026-03-26-wargame-gm-llm-client-integration-retry-2.md -> active/
+06:50:14 [INFO] Calling codex in /home/brian/projects/wargame (max_turns=35, budget=$3.00, timeout=1050s, trace=openclaw.flat.planner-2026-03-26-wargame-gm-llm-client-integration-retry-2.1774533014)
+06:50:14 [WARNING] LLM_CLIENT_TIMEOUT_POLICY=ban (first observed in acall_llm)
+06:50:14 [WARNING] TIMEOUT_DISABLED[acall_llm]: timeout=1050s ignored (set LLM_CLIENT_TIMEOUT_POLICY=allow to re-enable).
+06:50:14 [WARNING] AGENT_RETRY_DISABLED: retries for agent models are disabled by default to avoid duplicate side effects. Set agent_retry_safe=True (or LLM_CLIENT_AGENT_RETRY_SAFE=1) only for explicitly safe/read-only runs.
+06:59:43 [INFO] Moved planner-2026-03-26-wargame-gm-llm-client-integration-retry-2.md -> completed/
+06:59:43 [INFO] Cost: $2.2671 in 551.2s
+06:59:43 [INFO] === Task COMPLETED: Integrate llm_client for GM Adjudication ===
+TIMEOUT_DISABLED[call_llm_structured]: timeout=60s ignored (set LLM_CLIENT_TIMEOUT_POLICY=allow to re-enable).

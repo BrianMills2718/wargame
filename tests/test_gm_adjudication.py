@@ -120,6 +120,7 @@ def test_adjudicate_player_action_returns_valid_packet(monkeypatch: Any) -> None
     assert captured["kwargs"]["task"] == "gm_adjudication_test"
     assert captured["kwargs"]["trace_id"] == "tests/gm/adjudication"
     assert captured["kwargs"]["max_budget"] == 0.25
+    assert set(captured["kwargs"]) == {"response_format", "task", "trace_id", "max_budget"}
     assert captured["kwargs"]["response_format"] == {
         "type": "json_schema",
         "json_schema": {
@@ -139,4 +140,19 @@ def test_gm_response_format_matches_acceptance_contract() -> None:
     assert gm_adjudicator._adjudication_response_format() == {
         "type": "json_schema",
         "schema": AdjudicationPacket.model_json_schema(),
+    }
+
+
+def test_gm_response_format_translates_for_llm_client() -> None:
+    """The GM's flat contract should be adapted to llm_client's provider-facing shape."""
+
+    response_format = gm_adjudicator._adjudication_response_format()
+
+    assert gm_adjudicator._llm_client_response_format(response_format) == {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "AdjudicationPacket",
+            "schema": AdjudicationPacket.model_json_schema(),
+            "strict": True,
+        },
     }
