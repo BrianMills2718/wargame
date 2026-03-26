@@ -7,11 +7,13 @@ from src.core.models import (
     AdjudicationPacket,
     AppliedChange,
     AttributeChange,
+    MapFeature,
     Nation,
     Player,
     TurnResult,
     WorldState,
 )
+from src.core.scenario_loader import load_scenario
 
 __all__ = [
     "Actor",
@@ -19,10 +21,12 @@ __all__ = [
     "AdjudicationPacket",
     "AppliedChange",
     "AttributeChange",
+    "MapFeature",
     "Nation",
     "Player",
     "TurnEngine",
     "TurnResult",
     "WorldState",
     "filter_observations",
+    "load_scenario",
 ]

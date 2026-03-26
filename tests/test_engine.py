@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from src.core import (
     Actor,
     AdjudicationPacket,
@@ -11,6 +13,7 @@ from src.core import (
     TurnEngine,
     WorldState,
     filter_observations,
+    load_scenario,
 )
 
 
@@ -121,3 +124,20 @@ def test_filter_observations_respects_player_role_alliances_and_proximity() -> N
         "uk",
         "proxy-a",
     }
+
+
+def test_scenario_loading() -> None:
+    """Scenario documents should hydrate the canonical world state in one step."""
+
+    scenario_path = Path(__file__).resolve().parent.parent / "scenarios" / "test_scenario.json"
+
+    world_state = load_scenario(scenario_path)
+
+    assert isinstance(world_state, WorldState)
+    assert set(world_state.nations) == {"us", "iran"}
+    assert world_state.players["player-us"].nation_id == "us"
+    assert world_state.actors["irgc-navy"].position == "hormuz"
+    assert world_state.map_features["strait-of-hormuz"].feature_type == "chokepoint"
+    assert world_state.objectives["player-iran"] == [
+        "Preserve regime stability while deterring direct escalation."
+    ]

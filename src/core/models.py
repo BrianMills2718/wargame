@@ -67,6 +67,27 @@ class Player(BaseModel):
     )
 
 
+class MapFeature(BaseModel):
+    """Static scenario feature retained in state for geography-aware rules and objectives."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    feature_id: str = Field(min_length=1, description="Stable identifier for the map feature.")
+    name: str = Field(min_length=1, description="Human-readable name for the map feature.")
+    feature_type: str = Field(
+        min_length=1,
+        description="Scenario-defined classification such as chokepoint or city.",
+    )
+    position: str = Field(
+        min_length=1,
+        description="Map node where the feature is located for proximity checks.",
+    )
+    properties: dict[str, str | int | bool] = Field(
+        default_factory=dict,
+        description="Structured scenario metadata used by future rules and UI surfaces.",
+    )
+
+
 class WorldState(BaseModel):
     """Canonical world state mutated by the turn engine."""
 
@@ -96,6 +117,14 @@ class WorldState(BaseModel):
     map_adjacency: dict[str, list[str]] = Field(
         default_factory=dict,
         description="Map node adjacency used to determine local observation proximity.",
+    )
+    map_features: dict[str, MapFeature] = Field(
+        default_factory=dict,
+        description="Static map features keyed by feature identifier.",
+    )
+    objectives: dict[str, list[str]] = Field(
+        default_factory=dict,
+        description="Initial scenario objectives keyed by player or nation identifier.",
     )
     latest_turn_result: TurnResult | None = Field(
         default=None,
@@ -130,6 +159,20 @@ class WorldState(BaseModel):
                 msg = (
                     f"Alliance source '{nation_id}' references unknown allies "
                     f"{', '.join(sorted(unknown_allies))}."
+                )
+                raise ValueError(msg)
+        for feature_id, feature in self.map_features.items():
+            if feature_id != feature.feature_id:
+                msg = (
+                    f"Map feature key '{feature_id}' does not match feature_id "
+                    f"'{feature.feature_id}'."
+                )
+                raise ValueError(msg)
+        for objective_owner in self.objectives:
+            if objective_owner not in self.players and objective_owner not in self.nations:
+                msg = (
+                    f"Objective owner '{objective_owner}' must reference a known player "
+                    "or nation."
                 )
                 raise ValueError(msg)
         return self

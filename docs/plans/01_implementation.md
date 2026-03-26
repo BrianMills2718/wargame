@@ -36,7 +36,7 @@ in this phase — just Python + tests.
 - [x] **Observation filter**: Given a `TurnResult` and a player ID, return only
   the observations that player is allowed to see (fog of war). Players never
   see raw state.
-- [ ] **Scenario loader**: Load an initial scenario from YAML (nations, starting
+- [x] **Scenario loader**: Load an initial scenario from YAML (nations, starting
   state values, actor definitions, victory conditions).
 - [ ] **Test suite**: At least 10 tests covering state updates, RNG boundaries,
   observation filtering, and scenario loading.
