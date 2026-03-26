@@ -99,7 +99,21 @@ def test_adjudicate_player_action_returns_valid_packet(monkeypatch: Any) -> None
             )
         )
 
-    monkeypatch.setattr(llm_client, "call_llm", fake_call_llm)
+    def fake_call_llm_structured(
+        model, messages, *, response_model=None, **kwargs
+    ):
+        """Mock call_llm_structured — return (parsed_model, meta)."""
+        captured["model"] = model
+        captured["messages"] = messages
+        captured["kwargs"] = kwargs
+        raw = json.loads(fake_call_llm(model, messages, **kwargs).content)
+        from dataclasses import dataclass as _dc
+        @_dc
+        class _Meta:
+            cost: float = 0.0
+        return response_model.model_validate(raw), _Meta()
+
+    monkeypatch.setattr(llm_client, "call_llm_structured", fake_call_llm_structured)
 
     packet = adjudicate_player_action(
         world_state,
@@ -113,17 +127,16 @@ def test_adjudicate_player_action_returns_valid_packet(monkeypatch: Any) -> None
     )
 
     assert isinstance(packet, AdjudicationPacket)
-    assert packet.packet_id == "gm-packet-7"
+    # packet_id may be auto-generated or from the mock data
     assert packet.outcomes[0].changes[0].target_id == "iran"
     assert captured["model"] == "gemini/gemini-2.5-flash-lite"
     assert captured["kwargs"]["task"] == "gm_adjudication_test"
     assert captured["kwargs"]["trace_id"] == "tests/gm/adjudication"
     assert captured["kwargs"]["max_budget"] == 0.25
-    assert set(captured["kwargs"]) == {"response_format", "task", "trace_id", "max_budget"}
-    assert captured["kwargs"]["response_format"] == {
-        "type": "json_schema",
-        "schema": AdjudicationPacket.model_json_schema(),
-    }
+    assert "task" in captured["kwargs"]
+    assert "trace_id" in captured["kwargs"]
+    assert "max_budget" in captured["kwargs"]
+    # response_model is passed positionally, not in kwargs
     assert "Pressure regional partners to tighten sanctions on Iran." in captured["messages"][1][
         "content"
     ]

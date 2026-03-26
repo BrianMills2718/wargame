@@ -24,7 +24,7 @@ def adjudicate_player_action(
 ) -> AdjudicationPacket:
     """Translate one player directive into a validated GM adjudication packet."""
 
-    import llm_client
+    from llm_client import call_llm_structured
 
     messages = _render_game_master_prompt(
         world_state=world_state,
@@ -32,18 +32,15 @@ def adjudicate_player_action(
         player_action=player_action,
         recent_turn_summary=recent_turn_summary,
     )
-    result = llm_client.call_llm(
+    result, _meta = call_llm_structured(
         model,
         messages,
-        response_format={
-            "type": "json_schema",
-            "schema": AdjudicationPacket.model_json_schema(),
-        },
+        response_model=AdjudicationPacket,
         task=task,
         trace_id=trace_id,
         max_budget=max_budget,
     )
-    return _parse_adjudication_packet(result.content)
+    return result
 
 
 def _render_game_master_prompt(
