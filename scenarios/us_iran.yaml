@@ -1,0 +1,93 @@
+# US-Iran Proxy Conflict Scenario
+# Starting conditions for a 2-player geopolitical wargame
+
+name: "US-Iran Proxy Conflict"
+description: |
+  A simmering proxy conflict in the Middle East. The US seeks containment
+  and regional stability. Iran seeks survival, regional influence, and
+  dignity on the world stage. Both sides operate through proxies, diplomacy,
+  intelligence, and economic pressure.
+
+turn_limit: 20
+
+nations:
+  - id: us
+    name: "United States"
+    player_id: player_1
+    attributes:
+      military_readiness: 85
+      sanctions_intensity: 70
+      proxy_morale: 60
+      diplomatic_leverage: 75
+      intel_coverage: 80
+      public_opinion_domestic: 55
+      public_opinion_international: 50
+      economic_stability: 70
+      nuclear_capability: 95
+      alliance_cohesion: 65
+      media_narrative_control: 70
+      covert_ops_capacity: 85
+      territorial_control: 30
+      regime_stability: 80
+      humanitarian_index: 45
+    actors:
+      - id: us_military
+        name: "CENTCOM"
+        type: military
+      - id: us_intel
+        name: "CIA Station"
+        type: intelligence
+      - id: us_diplo
+        name: "State Department Envoy"
+        type: diplomatic
+
+  - id: iran
+    name: "Islamic Republic of Iran"
+    player_id: player_2
+    attributes:
+      military_readiness: 60
+      sanctions_intensity: 0
+      proxy_morale: 75
+      diplomatic_leverage: 45
+      intel_coverage: 55
+      public_opinion_domestic: 65
+      public_opinion_international: 40
+      economic_stability: 35
+      nuclear_capability: 40
+      alliance_cohesion: 70
+      media_narrative_control: 50
+      covert_ops_capacity: 65
+      territorial_control: 60
+      regime_stability: 70
+      humanitarian_index: 40
+    actors:
+      - id: irgc
+        name: "IRGC Quds Force"
+        type: military
+      - id: iran_intel
+        name: "MOIS"
+        type: intelligence
+      - id: iran_diplo
+        name: "Foreign Ministry"
+        type: diplomatic
+
+victory_conditions:
+  us:
+    description: "Contain Iranian influence, maintain regional stability, avoid escalation"
+    metrics:
+      - attribute: sanctions_intensity
+        target: ">= 60"
+      - attribute: alliance_cohesion
+        target: ">= 60"
+      - attribute: regime_stability
+        nation: iran
+        target: "<= 40"
+  iran:
+    description: "Survive with dignity, expand regional influence, resist containment"
+    metrics:
+      - attribute: regime_stability
+        target: ">= 60"
+      - attribute: proxy_morale
+        target: ">= 60"
+      - attribute: diplomatic_leverage
+        target: ">= 50"

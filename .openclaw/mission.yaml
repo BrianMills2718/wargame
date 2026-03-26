@@ -1,24 +1,33 @@
-# OpenClaw Mission: Wargame — Full Implementation
-# Continuous autonomous run. Budget: $50. No cycle limit.
+# OpenClaw Mission: Wargame — Continue from Phase 1 CLI smoke test
+# Round 2. Prior run completed 5/6 Phase 1 criteria.
 
-mission_id: wargame-full-implementation
+mission_id: wargame-round2
 project_root: ~/projects/wargame
 
 objective: |
   You are building a geopolitical wargame at ~/projects/wargame.
 
-  The plan is docs/plans/01_implementation.md. Work through ALL FIVE PHASES
-  sequentially. For each phase, read the unchecked acceptance criteria and
-  generate tasks to implement them.
+  The plan is docs/plans/01_implementation.md. Work through ALL FIVE PHASES.
 
-  DO NOT STOP between phases. When Phase N criteria are all met, move to Phase N+1.
-  If blocked on a criterion, log the blocker and move to the next one.
+  CURRENT STATE (from prior autonomous run):
+  - Phase 1 is 5/6 done. models.py, engine.py, scenario_loader.py all built.
+    Observation filtering is in engine.py. 14 tests pass.
+  - REMAINING Phase 1: CLI smoke test only. Build src/core/__main__.py that
+    loads scenarios/us_iran.yaml, processes one hardcoded AdjudicationPacket,
+    prints filtered observations for each player.
+  - After CLI smoke test passes, Phase 1 is complete. Move to Phase 2.
 
-  Current state: Phase 1 is partially built (models.py, engine.py, 6 tests).
-  Remaining Phase 1 work: observation filter, scenario loader, 4+ more tests, CLI smoke test.
+  Phase 2: Game Master LLM. Wire llm_client for structured output. Build
+  GM prompt + AdjudicationPacket schema. Install llm_client first:
+  pip install -e ~/projects/llm_client
 
-  After Phase 1: Phase 2 (GM LLM), Phase 3 (Sub-agents), Phase 4 (Game loop),
-  Phase 5 (Scoring + balance).
+  Phase 3: Sub-agent bureaucracy (Intel Chief, Diplomatic Envoy, Military Advisor).
+  Phase 4: Game loop (CLI, turn history, multi-player, replay).
+  Phase 5: Scoring + balance.
+
+  IMPORTANT: Do NOT delete existing tests. Add new test files, don't modify
+  existing ones unless fixing a bug IN that test. The prior run was stopped
+  because the agent kept deleting tests.
 
   RULES:
   - Set project to "~/projects/wargame" and model to "codex" in every task
@@ -26,7 +35,6 @@ objective: |
   - Run pytest before committing. Commit with [Plan #1] prefix.
   - Do NOT generate meta-tasks (docs, policies, refactoring)
   - If blocked after 3 attempts, log blocker and move to next criterion
-  - Install llm_client in the venv when Phase 2 starts: pip install -e ~/projects/llm_client
 
 planner:
   enabled: true
@@ -42,19 +50,10 @@ policy:
   poll_interval_s: 30
 
 success_criteria:
-  # Phase 1
-  - type: file_exists
-    path: src/core/models.py
-    description: State models exist
-  - type: file_exists
-    path: src/core/engine.py
-    description: Turn engine exists
-  - type: file_exists
-    path: src/core/observation.py
-    description: Observation filter exists
+  # Phase 1 (remaining)
   - type: file_exists
     path: scenarios/us_iran.yaml
-    description: Scenario file exists
+    description: US-Iran scenario exists
   - type: command
     command: ["python", "-m", "pytest", "tests/", "-q", "--tb=no"]
     description: All tests pass
