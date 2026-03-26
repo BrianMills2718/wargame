@@ -1,0 +1,180 @@
+"""Pydantic models for canonical state and adjudication packets."""
+
+from __future__ import annotations
+
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+
+class StateEntity(BaseModel):
+    """Canonical entity whose thin-spine attributes can change between turns."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    entity_id: str = Field(min_length=1, description="Stable identifier for the entity.")
+    name: str = Field(min_length=1, description="Human-readable entity name.")
+    attributes: dict[str, int] = Field(
+        default_factory=dict,
+        description="Thin-spine state variables stored as 0-100 integer values.",
+    )
+
+    @field_validator("attributes")
+    @classmethod
+    def validate_attributes(cls, attributes: dict[str, int]) -> dict[str, int]:
+        """Reject attribute values that violate the canonical 0-100 range."""
+
+        for key, value in attributes.items():
+            if not 0 <= value <= 100:
+                msg = f"Attribute '{key}' must remain within 0-100; got {value}."
+                raise ValueError(msg)
+        return attributes
+
+
+class Nation(StateEntity):
+    """A player-controlled nation in the canonical world state."""
+
+
+class Actor(StateEntity):
+    """A non-sovereign actor that can still affect the geopolitical state."""
+
+    nation_id: str = Field(
+        min_length=1,
+        description="Identifier of the nation the actor is aligned with.",
+    )
+
+
+class WorldState(BaseModel):
+    """Canonical world state mutated by the turn engine."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    turn_number: int = Field(
+        default=0,
+        ge=0,
+        description="Current turn number before the next packet is applied.",
+    )
+    nations: dict[str, Nation] = Field(
+        default_factory=dict,
+        description="Nation entities keyed by their stable identifiers.",
+    )
+    actors: dict[str, Actor] = Field(
+        default_factory=dict,
+        description="Actor entities keyed by their stable identifiers.",
+    )
+
+    @model_validator(mode="after")
+    def validate_entity_keys(self) -> "WorldState":
+        """Ensure dictionary keys match the entity identifiers they store."""
+
+        for entity_id, nation in self.nations.items():
+            if entity_id != nation.entity_id:
+                msg = f"Nation key '{entity_id}' does not match entity_id '{nation.entity_id}'."
+                raise ValueError(msg)
+        for entity_id, actor in self.actors.items():
+            if entity_id != actor.entity_id:
+                msg = f"Actor key '{entity_id}' does not match entity_id '{actor.entity_id}'."
+                raise ValueError(msg)
+        return self
+
+
+class AttributeChange(BaseModel):
+    """A direct change to a single nation or actor attribute."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    target_type: Literal["nation", "actor"] = Field(
+        description="Whether the change targets a nation or an actor."
+    )
+    target_id: str = Field(min_length=1, description="Identifier of the target entity.")
+    attribute: str = Field(
+        min_length=1,
+        description="Thin-spine attribute name to update on the target entity.",
+    )
+    delta: int = Field(description="Signed amount to add to the attribute value.")
+
+
+class AdjudicationOutcome(BaseModel):
+    """A weighted outcome the engine can select after rolling RNG."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, description="Outcome label returned in the turn result.")
+    weight: float = Field(
+        gt=0,
+        description="Relative weight used when sampling this outcome.",
+    )
+    changes: list[AttributeChange] = Field(
+        default_factory=list,
+        description="Attribute changes applied if this outcome is selected.",
+    )
+
+
+class AdjudicationPacket(BaseModel):
+    """Structured adjudication instructions emitted by the GM boundary."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    packet_id: str = Field(min_length=1, description="Stable identifier for the packet.")
+    description: str = Field(
+        min_length=1,
+        description="Human-readable summary of the action being adjudicated.",
+    )
+    guaranteed_changes: list[AttributeChange] = Field(
+        default_factory=list,
+        description="Changes that always happen regardless of the RNG outcome.",
+    )
+    outcomes: list[AdjudicationOutcome] = Field(
+        default_factory=list,
+        description="Weighted outcomes considered after the engine rolls RNG.",
+    )
+
+    @model_validator(mode="after")
+    def validate_contents(self) -> "AdjudicationPacket":
+        """Reject empty packets that would not change the world state."""
+
+        if not self.guaranteed_changes and not self.outcomes:
+            msg = "AdjudicationPacket must define guaranteed changes, outcomes, or both."
+            raise ValueError(msg)
+        return self
+
+
+class AppliedChange(BaseModel):
+    """Observed canonical state mutation produced by packet processing."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    target_type: Literal["nation", "actor"] = Field(
+        description="Whether the change targeted a nation or an actor."
+    )
+    target_id: str = Field(min_length=1, description="Identifier of the mutated entity.")
+    attribute: str = Field(
+        min_length=1,
+        description="Thin-spine attribute name that was changed.",
+    )
+    old_value: int = Field(ge=0, le=100, description="Value before the change.")
+    new_value: int = Field(ge=0, le=100, description="Value after the change.")
+    delta: int = Field(description="Signed amount applied to the attribute.")
+
+
+class TurnResult(BaseModel):
+    """Structured record of how a packet changed the world state."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    packet_id: str = Field(min_length=1, description="Identifier of the processed packet.")
+    turn_number: int = Field(ge=1, description="Turn number after the packet was applied.")
+    roll: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="Raw RNG roll used to select an outcome, if any.",
+    )
+    selected_outcome: str | None = Field(
+        default=None,
+        description="Outcome name selected by the RNG, if any.",
+    )
+    applied_changes: list[AppliedChange] = Field(
+        default_factory=list,
+        description="Concrete state mutations applied while processing the packet.",
+    )
