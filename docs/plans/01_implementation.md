@@ -40,7 +40,7 @@ in this phase — just Python + tests.
   state values, actor definitions, victory conditions).
 - [x] **Test suite**: At least 10 tests covering state updates, RNG boundaries,
   observation filtering, and scenario loading.
-- [ ] **CLI smoke test**: `python -m src.core.engine` loads a scenario, processes
+- [x] **CLI smoke test**: `python -m src.core.engine` loads a scenario, processes
   one hardcoded adjudication packet, prints the filtered observation for each
   player.
 
