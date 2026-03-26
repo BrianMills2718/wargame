@@ -52,6 +52,79 @@ python -m src.core                   # run a test turn through the package CLI
 - **Fail loud** — invalid LLM output raises, doesn't silently degrade
 - **Commit early and often** — every passing test suite gets a commit
 
+## How to Use llm_client (REQUIRED for Phases 2-5)
+
+llm_client is installed in the venv (`pip install -e ~/projects/llm_client`).
+**Every LLM call must use these patterns exactly.**
+
+### Structured output (use for GM, sub-agents, scoring)
+
+```python
+from llm_client import call_llm_structured
+from pydantic import BaseModel, Field
+
+class MyResponse(BaseModel):
+    """Describe what the LLM should output."""
+    field_one: str = Field(description="What this field means")
+    field_two: int = Field(description="What this field means")
+    items: list[str] = Field(description="A list of things")
+
+messages = [{"role": "user", "content": "Your prompt here"}]
+
+result, meta = call_llm_structured(
+    "gemini/gemini-2.5-flash",     # model name
+    messages,                       # list of message dicts
+    response_model=MyResponse,     # Pydantic class (NOT an instance)
+    task="gm_adjudication",        # task name for observability
+    trace_id="wargame.gm.turn_1",  # trace ID for cost tracking
+    max_budget=1.0,                # max USD for this call
+)
+# result is a MyResponse instance (already validated)
+# meta.cost is the USD cost of the call
+print(result.field_one)
+```
+
+### Plain text output (use for narrative generation, reports)
+
+```python
+from llm_client import acall_llm  # async version
+
+import asyncio
+
+async def generate_report():
+    result = await acall_llm(
+        "gemini/gemini-2.5-flash",
+        [{"role": "user", "content": "Write a briefing..."}],
+        task="sub_agent_briefing",
+        trace_id="wargame.agent.intel.turn_1",
+        max_budget=0.5,
+    )
+    return result.content  # plain text string
+```
+
+### Prompt templates (YAML/Jinja2)
+
+```python
+from llm_client import render_prompt
+from pathlib import Path
+
+messages = render_prompt(
+    Path("prompts/game_master.yaml"),
+    world_state=world_state_text,
+    player_action=action_text,
+)
+# Pass directly to call_llm_structured as the messages arg
+```
+
+### Key rules
+
+- **Required kwargs on EVERY call**: `task=`, `trace_id=`, `max_budget=`
+- **Always use `call_llm_structured` with `response_model=`** for structured output
+  (NOT `call_llm` with `response_format`)
+- **Model for bulk/fast work**: `gemini/gemini-2.5-flash`
+- **Do NOT set max output tokens or request timeouts**
+- **Pydantic Field descriptions** constrain LLM behavior at decode time — always include them
+
 ## Current State
 
 Phase 1 partially built (4/6 criteria checked in plan):
