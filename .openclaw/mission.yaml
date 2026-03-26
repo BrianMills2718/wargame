@@ -1,0 +1,51 @@
+# OpenClaw Mission: Wargame Phase 1 — Programmatic Core
+# This is a validation run (2-cycle limit) to test mission runner plumbing.
+
+mission_id: wargame-phase1-core
+project_root: ~/projects/wargame
+
+objective: |
+  You are building a geopolitical wargame at ~/projects/wargame.
+
+  The plan is docs/plans/01_implementation.md. You are working on Phase 1
+  (Programmatic Core). Read the plan and generate tasks ONLY for unchecked
+  Phase 1 acceptance criteria.
+
+  Phase 1 is pure Python — no LLM calls. Build:
+  1. Pydantic state models (WorldState, Nation, Actor, thin-spine dictionary)
+  2. TurnEngine that processes AdjudicationPackets and updates state via RNG
+  3. Observation filter (fog of war — players see filtered results only)
+  4. Scenario loader (YAML → initial WorldState)
+  5. Test suite (10+ tests)
+  6. CLI smoke test
+
+  RULES:
+  - Set project to "~/projects/wargame" and model to "codex" in every task
+  - Each task must cite which Phase 1 acceptance criterion it advances
+  - Run pytest before committing. Commit with [Plan #1] prefix.
+  - Do NOT generate meta-tasks (docs, policies, refactoring)
+  - Do NOT work on Phase 2+ (no LLM calls in Phase 1)
+
+planner:
+  enabled: true
+  model: gemini/gemini-2.5-flash
+  max_tasks_per_cycle: 4
+
+policy:
+  max_consecutive_failures: 3
+  max_cycles: 2
+  max_replans: 1
+  max_idle_cycles: 2
+  max_cost_usd: 15.0
+  poll_interval_s: 30
+
+success_criteria:
+  - type: command
+    command: ["python", "-m", "pytest", "tests/", "-q"]
+    description: All tests pass
+  - type: file_exists
+    path: src/core/models.py
+    description: State models exist
+  - type: file_exists
+    path: src/core/engine.py
+    description: Turn engine exists
