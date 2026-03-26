@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from src.core import (
     Actor,
     AdjudicationPacket,
@@ -126,10 +128,11 @@ def test_filter_observations_respects_player_role_alliances_and_proximity() -> N
     }
 
 
-def test_scenario_loading() -> None:
+@pytest.mark.parametrize("scenario_name", ["test_scenario.json", "test_scenario.yaml"])
+def test_scenario_loading(scenario_name: str) -> None:
     """Scenario documents should hydrate the canonical world state in one step."""
 
-    scenario_path = Path(__file__).resolve().parent.parent / "scenarios" / "test_scenario.json"
+    scenario_path = Path(__file__).resolve().parent.parent / "scenarios" / scenario_name
 
     world_state = load_scenario(scenario_path)
 
@@ -141,3 +144,13 @@ def test_scenario_loading() -> None:
     assert world_state.objectives["player-iran"] == [
         "Preserve regime stability while deterring direct escalation."
     ]
+
+
+def test_scenario_loading_rejects_unsupported_file_format(tmp_path: Path) -> None:
+    """Scenario loader should fail loudly when a file format is not supported."""
+
+    unsupported_path = tmp_path / "scenario.txt"
+    unsupported_path.write_text("turn_number: 0\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="Unsupported scenario file format"):
+        load_scenario(unsupported_path)

@@ -1,0 +1,63 @@
+turn_number: 0
+nations:
+  us:
+    entity_id: us
+    name: United States
+    position: gulf
+    attributes:
+      military_readiness: 65
+      diplomatic_leverage: 58
+      economic_stability: 72
+  iran:
+    entity_id: iran
+    name: Iran
+    position: tehran
+    attributes:
+      military_readiness: 61
+      regime_stability: 63
+      diplomatic_leverage: 47
+actors:
+  irgc-navy:
+    entity_id: irgc-navy
+    name: IRGC Navy
+    nation_id: iran
+    position: hormuz
+    attributes:
+      covert_ops_capacity: 54
+      territorial_control: 45
+players:
+  player-us:
+    player_id: player-us
+    nation_id: us
+    role: leader
+    position: gulf
+  player-iran:
+    player_id: player-iran
+    nation_id: iran
+    role: leader
+    position: tehran
+alliances:
+  us: []
+  iran: []
+map_adjacency:
+  gulf:
+    - hormuz
+  hormuz:
+    - gulf
+    - tehran
+  tehran:
+    - hormuz
+map_features:
+  strait-of-hormuz:
+    feature_id: strait-of-hormuz
+    name: Strait of Hormuz
+    feature_type: chokepoint
+    position: hormuz
+    properties:
+      trade_flow_percent: 20
+      contested: true
+objectives:
+  player-us:
+    - Maintain freedom of navigation through the Strait of Hormuz.
+  player-iran:
+    - Preserve regime stability while deterring direct escalation.

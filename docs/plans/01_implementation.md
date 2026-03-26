@@ -38,7 +38,7 @@ in this phase — just Python + tests.
   see raw state.
 - [x] **Scenario loader**: Load an initial scenario from YAML (nations, starting
   state values, actor definitions, victory conditions).
-- [ ] **Test suite**: At least 10 tests covering state updates, RNG boundaries,
+- [x] **Test suite**: At least 10 tests covering state updates, RNG boundaries,
   observation filtering, and scenario loading.
 - [ ] **CLI smoke test**: `python -m src.core.engine` loads a scenario, processes
   one hardcoded adjudication packet, prints the filtered observation for each

@@ -54,15 +54,15 @@ python -m src.core.engine            # run a test turn (when implemented)
 
 ## Current State
 
-Phase 1 partially built (2/6 criteria done):
-- src/core/models.py — WorldState, Nation, Actor, AdjudicationPacket, TurnResult (180 lines)
-- src/core/engine.py — TurnEngine with RNG adjudication (118 lines)
-- tests/test_turn_engine.py — 6 tests passing (180 lines)
+Phase 1 partially built (3/6 criteria checked in plan):
+- src/core/models.py — `WorldState`, state entities, and adjudication models
+- src/core/engine.py — turn processing plus fog-of-war observation filtering
+- src/core/scenario_loader.py — JSON/YAML scenario loading into validated world state
+- tests/ — 10 passing pytest cases across engine, observation, and scenario loading
 
-Remaining Phase 1:
-- Observation filter (fog of war)
-- Scenario loader (YAML)
-- 4+ more tests (need 10+ total)
+Remaining Phase 1 per `docs/plans/01_implementation.md`:
+- State model acceptance item
+- Turn engine acceptance item
 - CLI smoke test
 
 ## References
