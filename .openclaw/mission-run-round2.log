@@ -42,3 +42,17 @@ TIMEOUT_DISABLED[call_llm_structured]: timeout=60s ignored (set LLM_CLIENT_TIMEO
 05:52:35 [INFO] Cost: $1.5053 in 204.0s
 05:52:35 [INFO] === Task COMPLETED: Implement CLI smoke test for wargame core ===
 TIMEOUT_DISABLED[call_llm_structured]: timeout=60s ignored (set LLM_CLIENT_TIMEOUT_POLICY=allow to re-enable).
+05:53:07 [INFO] Supervisor dispatch: planner-2026-03-26-wargame-install-llm-client.md
+05:53:07 [INFO] === Running task: Install llm_client in the wargame environment ===
+05:53:07 [INFO] Agent: codex | Project: /home/brian/projects/wargame | Priority: high
+05:53:07 [INFO] Moved planner-2026-03-26-wargame-install-llm-client.md -> active/
+05:53:09 [INFO] Calling codex in /home/brian/projects/wargame (max_turns=15, budget=$0.75, timeout=450s, trace=openclaw.flat.planner-2026-03-26-wargame-install-llm-client.1774529589)
+05:53:09 [WARNING] LLM_CLIENT_TIMEOUT_POLICY=ban (first observed in acall_llm)
+05:53:09 [WARNING] TIMEOUT_DISABLED[acall_llm]: timeout=450s ignored (set LLM_CLIENT_TIMEOUT_POLICY=allow to re-enable).
+05:53:09 [WARNING] AGENT_RETRY_DISABLED: retries for agent models are disabled by default to avoid duplicate side effects. Set agent_retry_safe=True (or LLM_CLIENT_AGENT_RETRY_SAFE=1) only for explicitly safe/read-only runs.
+05:58:07 [INFO] Wrote escalation: /home/brian/.openclaw/workspace/decisions/2026-03-26T12-58-07-866771_wargame_configuration.yaml
+05:58:07 [INFO] Extracted 0 spawned task(s), 1 escalation(s)
+05:58:08 [INFO] Moved planner-2026-03-26-wargame-install-llm-client.md -> completed/
+05:58:08 [INFO] Cost: $3.4339 in 294.9s
+05:58:08 [INFO] === Task COMPLETED: Install llm_client in the wargame environment ===
+TIMEOUT_DISABLED[call_llm_structured]: timeout=60s ignored (set LLM_CLIENT_TIMEOUT_POLICY=allow to re-enable).
