@@ -14,3 +14,44 @@ TIMEOUT_DISABLED[call_llm_structured]: timeout=60s ignored (set LLM_CLIENT_TIMEO
 06:59:43 [INFO] Cost: $2.2671 in 551.2s
 06:59:43 [INFO] === Task COMPLETED: Integrate llm_client for GM Adjudication ===
 TIMEOUT_DISABLED[call_llm_structured]: timeout=60s ignored (set LLM_CLIENT_TIMEOUT_POLICY=allow to re-enable).
+07:00:21 [INFO] Supervisor dispatch: planner-2026-03-26-wargame-gm-llm-client-integration-retry-1.md
+07:00:21 [INFO] === Running task: Integrate llm_client for GM Adjudication ===
+07:00:21 [INFO] Agent: codex | Project: /home/brian/projects/wargame | Priority: high
+07:00:21 [INFO] Moved planner-2026-03-26-wargame-gm-llm-client-integration-retry-1.md -> active/
+07:00:23 [INFO] Calling codex in /home/brian/projects/wargame (max_turns=35, budget=$3.00, timeout=1050s, trace=openclaw.flat.planner-2026-03-26-wargame-gm-llm-client-integration-retry-1.1774533623)
+07:00:23 [WARNING] LLM_CLIENT_TIMEOUT_POLICY=ban (first observed in acall_llm)
+07:00:23 [WARNING] TIMEOUT_DISABLED[acall_llm]: timeout=1050s ignored (set LLM_CLIENT_TIMEOUT_POLICY=allow to re-enable).
+07:00:23 [WARNING] AGENT_RETRY_DISABLED: retries for agent models are disabled by default to avoid duplicate side effects. Set agent_retry_safe=True (or LLM_CLIENT_AGENT_RETRY_SAFE=1) only for explicitly safe/read-only runs.
+07:02:48 [INFO] Moved planner-2026-03-26-wargame-gm-llm-client-integration-retry-1.md -> completed/
+07:02:48 [INFO] Cost: $0.8752 in 137.4s
+07:02:48 [INFO] === Task COMPLETED: Integrate llm_client for GM Adjudication ===
+TIMEOUT_DISABLED[call_llm_structured]: timeout=60s ignored (set LLM_CLIENT_TIMEOUT_POLICY=allow to re-enable).
+07:02:53 [INFO] Supervisor dispatch: planner-2026-03-26-wargame-gm-llm-client-integration-retry-2.md
+07:02:53 [INFO] === Running task: Integrate llm_client for GM Adjudication ===
+07:02:53 [INFO] Agent: codex | Project: /home/brian/projects/wargame | Priority: high
+07:02:53 [INFO] Moved planner-2026-03-26-wargame-gm-llm-client-integration-retry-2.md -> active/
+07:02:55 [INFO] Calling codex in /home/brian/projects/wargame (max_turns=35, budget=$3.00, timeout=1050s, trace=openclaw.flat.planner-2026-03-26-wargame-gm-llm-client-integration-retry-2.1774533775)
+07:02:55 [WARNING] LLM_CLIENT_TIMEOUT_POLICY=ban (first observed in acall_llm)
+07:02:55 [WARNING] TIMEOUT_DISABLED[acall_llm]: timeout=1050s ignored (set LLM_CLIENT_TIMEOUT_POLICY=allow to re-enable).
+07:02:55 [WARNING] AGENT_RETRY_DISABLED: retries for agent models are disabled by default to avoid duplicate side effects. Set agent_retry_safe=True (or LLM_CLIENT_AGENT_RETRY_SAFE=1) only for explicitly safe/read-only runs.
+07:09:37 [ERROR] ESCALATE #0: YAML parse error: mapping values are not allowed here
+  in "<unicode string>", line 4, column 33:
+    decision: Pass the flat `{"type": "json_schema", "schema": ...}` ... 
+                                    ^
+07:09:40 [INFO] Moved planner-2026-03-26-wargame-gm-llm-client-integration-retry-2.md -> completed/
+07:09:40 [INFO] Cost: $3.6514 in 389.9s
+07:09:40 [INFO] === Task COMPLETED: Integrate llm_client for GM Adjudication ===
+TIMEOUT_DISABLED[call_llm_structured]: timeout=60s ignored (set LLM_CLIENT_TIMEOUT_POLICY=allow to re-enable).
+TIMEOUT_DISABLED[call_llm_structured]: timeout=60s ignored (set LLM_CLIENT_TIMEOUT_POLICY=allow to re-enable).
+TIMEOUT_DISABLED[call_llm_structured]: timeout=60s ignored (set LLM_CLIENT_TIMEOUT_POLICY=allow to re-enable).
+Loaded mission 'wargame-round3' for /home/brian/projects/wargame
+Model gaps: none
+Model gaps: none
+Model gaps: none
+Model gaps: none
+Model gaps: none
+Model gaps: none
+Model gaps: none
+Model gaps: none
+Model gaps: none
+Mission 'wargame-round3' stopped with escalation; see /home/brian/projects/wargame/.openclaw/openclaw-missions/wargame-round3/tasks/mission.jsonl

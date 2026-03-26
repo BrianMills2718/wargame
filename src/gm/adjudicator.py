@@ -26,6 +26,8 @@ def adjudicate_player_action(
 ) -> AdjudicationPacket:
     """Translate one player directive into a validated GM adjudication packet."""
 
+    import llm_client
+
     messages = _render_game_master_prompt(
         world_state=world_state,
         acting_player_id=acting_player_id,
@@ -33,7 +35,7 @@ def adjudicate_player_action(
         recent_turn_summary=recent_turn_summary,
     )
     response_format = _adjudication_response_format()
-    result = _call_llm(
+    result = llm_client.call_llm(
         model,
         messages,
         response_format=response_format,
@@ -112,50 +114,6 @@ def _summarize_world_state(world_state: WorldState) -> str:
         ),
     }
     return json.dumps(summary, indent=2, sort_keys=True)
-
-
-def _call_llm(
-    model: str,
-    messages: list[dict[str, str]],
-    *,
-    response_format: dict[str, Any],
-    task: str,
-    trace_id: str,
-    max_budget: float,
-) -> Any:
-    """Import and invoke the shared llm_client with provider-compatible schema shape."""
-
-    from llm_client import call_llm
-
-    return call_llm(
-        model,
-        messages,
-        response_format=_llm_client_response_format(response_format),
-        task=task,
-        trace_id=trace_id,
-        max_budget=max_budget,
-    )
-
-
-def _llm_client_response_format(response_format: dict[str, Any]) -> dict[str, Any]:
-    """Translate the GM's flat schema contract into llm_client's expected payload."""
-
-    if response_format.get("type") != "json_schema":
-        return response_format
-
-    schema = response_format.get("schema")
-    if not isinstance(schema, dict):
-        msg = "GM response_format must include a dict-valued 'schema' entry."
-        raise ValueError(msg)
-
-    return {
-        "type": "json_schema",
-        "json_schema": {
-            "name": AdjudicationPacket.__name__,
-            "schema": schema,
-            "strict": True,
-        },
-    }
 
 
 def _parse_adjudication_packet(content: str) -> AdjudicationPacket:
