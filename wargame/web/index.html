@@ -56,6 +56,18 @@
   .intel-header { font-size: 11px; color: #60a5fa; text-transform: uppercase; margin-bottom: 4px; }
   .intel-item { font-size: 12px; color: #93c5fd; margin: 2px 0; }
 
+  .gm-block { margin-top: 6px; padding: 8px; background: #0f0a1a; border: 1px solid #3b1f5f; border-radius: 4px; }
+  .gm-header { font-size: 11px; color: #c084fc; text-transform: uppercase; margin-bottom: 4px; }
+  .gm-reasoning { font-size: 11px; color: #a78bfa; line-height: 1.4; margin-bottom: 6px; }
+  .prob-table { font-size: 11px; width: 100%; border-collapse: collapse; }
+  .prob-table th { text-align: left; color: #888; padding: 2px 6px; border-bottom: 1px solid #2a2a35; }
+  .prob-table td { padding: 2px 6px; color: #c0c0c0; }
+  .prob-table tr.chosen { background: #1a2a1a; }
+  .prob-bar { display: inline-block; height: 8px; border-radius: 2px; vertical-align: middle; margin-right: 4px; }
+  .transitions-list { font-size: 11px; color: #999; margin-top: 4px; }
+  .transitions-list span.pos { color: #4ade80; }
+  .transitions-list span.neg { color: #f87171; }
+
   /* Command input */
   .command-area { border-top: 1px solid #2a2a35; padding: 12px 16px; background: #0d0d14; }
   .command-area label { font-size: 11px; color: #888; text-transform: uppercase; display: block; margin-bottom: 4px; }
@@ -123,7 +135,7 @@
 
   <!-- Game screen (hidden until start) -->
   <div class="panel-left" id="panel-left" style="display:none">
-    <h2>Intelligence Estimates</h2>
+    <h2 id="panel-left-title">Intelligence Estimates</h2>
     <div id="var-list"></div>
   </div>
 
@@ -195,13 +207,17 @@ async function startGame(playAs, mode) {
     gameState = await res.json();
     turnCount = 0;
 
-    document.getElementById('status').textContent = `${gameState.scenario} | ${gameState.actor_names[playAs] || 'Observer'}`;
+    document.getElementById('status').textContent = `${gameState.scenario} | ${gameState.actor_names[playAs] || 'Spectator (God Mode)'}`;
     document.getElementById('turn-badge').style.display = '';
     document.getElementById('turn-badge').textContent = 'TURN 0';
 
+    if (isAiVsAi) {
+      document.getElementById('panel-left-title').textContent = 'Canonical State (God Mode)';
+    }
+
     renderVariables(gameState.estimates);
     addNarrative({turn: 0, actions: [], observations: {}, mechanical_deltas: {}},
-      `Game started. You are ${gameState.actor_names[playAs] || 'observing'}.`);
+      isAiVsAi ? 'AI vs AI mode. You see everything — canonical state, GM reasoning, probability tables.' : `Game started. You are ${gameState.actor_names[playAs]}.`);
 
     if (isAiVsAi) {
       runAiVsAi();
@@ -342,10 +358,57 @@ function addNarrative(turnResult, systemMsg) {
     const side = action.actor_id.includes('us') ? 'us' : 'iran';
     html += `<div class="action-block">
       <div class="action-actor ${side}">${action.actor} [${action.category}]</div>
-      <div class="action-intent">${action.intent}</div>
-      <div class="action-outcome ${action.outcome}">${action.outcome.replace('_', ' ').toUpperCase()}</div>
-      <div class="action-narrative">${action.narrative}</div>
-    </div>`;
+      <div class="action-intent">${action.intent}</div>`;
+
+    if (action.instruments) {
+      html += `<div style="font-size:11px;color:#666;margin:2px 0;">Instruments: ${action.instruments.join(', ')}</div>`;
+    }
+
+    html += `<div class="action-outcome ${action.outcome}">${action.outcome.replace('_', ' ').toUpperCase()}</div>
+      <div class="action-narrative">${action.narrative}</div>`;
+
+    // GM details (spectator mode)
+    if (action.gm_reasoning || action.probability_table) {
+      html += `<div class="gm-block">
+        <div class="gm-header">GM Adjudication</div>`;
+
+      if (action.gm_reasoning) {
+        html += `<div class="gm-reasoning">${action.gm_reasoning}</div>`;
+      }
+
+      if (action.probability_table) {
+        html += `<table class="prob-table">
+          <tr><th>Outcome</th><th>Prob</th><th></th><th>State Changes</th></tr>`;
+        for (const row of action.probability_table) {
+          const isChosen = row.outcome === action.outcome;
+          const barW = Math.round(row.probability * 200);
+          const barColor = isChosen ? '#4ade80' : '#555';
+          const transitions = (row.transitions || [])
+            .map(t => `<span class="${t.delta > 0 ? 'pos' : 'neg'}">${t.var.replace('sv_','')} ${t.delta > 0 ? '+' : ''}${t.delta}</span>`)
+            .join(', ');
+          html += `<tr class="${isChosen ? 'chosen' : ''}">
+            <td>${row.outcome.replace('_',' ')}${isChosen ? ' ◄' : ''}</td>
+            <td>${(row.probability * 100).toFixed(0)}%</td>
+            <td><span class="prob-bar" style="width:${barW}px;background:${barColor}"></span></td>
+            <td class="transitions-list">${transitions || '—'}</td>
+          </tr>`;
+        }
+        html += '</table>';
+      }
+
+      // Show the actual state changes that were applied
+      if (action.gm_transitions && action.gm_transitions.length > 0) {
+        html += `<div class="transitions-list" style="margin-top:6px;">Applied: `;
+        html += action.gm_transitions.map(t =>
+          `<span class="${t.delta > 0 ? 'pos' : 'neg'}">${t.var.replace('sv_','')} ${t.delta > 0 ? '+' : ''}${t.delta}</span>`
+        ).join(', ');
+        html += '</div>';
+      }
+
+      html += '</div>';
+    }
+
+    html += '</div>';
   }
 
   // Intel briefing

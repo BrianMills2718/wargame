@@ -299,14 +299,26 @@ async def submit_command(req: CommandRequest):
     # Adjudicate all actions
     for actor_id, action in turn_actions:
         chosen, packet = _adjudicate(conn, spec, action, turn, mech.all_mechanical_deltas, trace_id)
+
+        # Build probability table for spectator view
+        prob_table = [
+            {"outcome": o.outcome_id, "probability": round(o.probability, 2),
+             "transitions": [{"var": t.var_id, "delta": round(t.delta, 3)} for t in o.state_transitions]}
+            for o in packet.possible_outcomes
+        ]
+
         turn_result["actions"].append({
             "actor": _get_actor_name(spec, actor_id),
             "actor_id": actor_id,
             "is_human": actor_id == human_actor,
             "category": action.action_category,
+            "instruments": action.instruments_used,
             "intent": action.intended_effect,
             "outcome": chosen["outcome_id"],
             "narrative": chosen["narrative"],
+            "gm_reasoning": packet.reasoning,
+            "probability_table": prob_table,
+            "gm_transitions": [{"var": t["var_id"], "delta": round(t["delta"], 3)} for t in chosen["state_transitions"]],
         })
 
     # Generate observations
@@ -317,12 +329,23 @@ async def submit_command(req: CommandRequest):
     game["turn_log"].append(turn_result)
 
     # Return updated state
-    estimates = get_actor_state_estimates(conn, human_actor) if human_actor else get_all_variables(conn)
+    canonical = get_all_variables(conn)
+    estimates = get_actor_state_estimates(conn, human_actor) if human_actor else canonical
     history = get_state_history(conn)
     hist_json = {var_id: [{"turn": t, "value": v} for t, v in points] for var_id, points in history.items()}
 
-    return {
+    response = {
         "turn_result": turn_result,
         "estimates": estimates,
         "history": hist_json,
     }
+
+    # Spectator/god-mode: include canonical state and per-actor estimates
+    if mode == "ai_vs_ai" or not human_actor:
+        actor_estimates = {}
+        for a in spec.actors:
+            actor_estimates[a.id] = get_actor_state_estimates(conn, a.id)
+        response["canonical"] = canonical
+        response["actor_estimates"] = actor_estimates
+
+    return response
