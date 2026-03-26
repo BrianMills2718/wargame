@@ -33,7 +33,7 @@ in this phase — just Python + tests.
   `AdjudicationPacket` (JSON-like dict with affected variables, probability
   distribution, visibility rules), rolls RNG, updates `WorldState`, returns
   `TurnResult` with what changed.
-- [ ] **Observation filter**: Given a `TurnResult` and a player ID, return only
+- [x] **Observation filter**: Given a `TurnResult` and a player ID, return only
   the observations that player is allowed to see (fog of war). Players never
   see raw state.
 - [ ] **Scenario loader**: Load an initial scenario from YAML (nations, starting

@@ -18,6 +18,10 @@ class StateEntity(BaseModel):
         default_factory=dict,
         description="Thin-spine state variables stored as 0-100 integer values.",
     )
+    position: str | None = Field(
+        default=None,
+        description="Current map node or theater used for proximity-based observation filtering.",
+    )
 
     @field_validator("attributes")
     @classmethod
@@ -44,6 +48,25 @@ class Actor(StateEntity):
     )
 
 
+class Player(BaseModel):
+    """Player metadata used by the engine to filter observations."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    player_id: str = Field(min_length=1, description="Stable identifier for the player.")
+    nation_id: str = Field(
+        min_length=1,
+        description="Nation controlled by the player for alliance and ownership checks.",
+    )
+    role: Literal["leader", "operative", "observer"] = Field(
+        description="Observation role that determines how much distant activity is visible."
+    )
+    position: str | None = Field(
+        default=None,
+        description="Current theater or map node where the player is operating.",
+    )
+
+
 class WorldState(BaseModel):
     """Canonical world state mutated by the turn engine."""
 
@@ -62,6 +85,22 @@ class WorldState(BaseModel):
         default_factory=dict,
         description="Actor entities keyed by their stable identifiers.",
     )
+    players: dict[str, Player] = Field(
+        default_factory=dict,
+        description="Player metadata keyed by player identifier for fog-of-war filtering.",
+    )
+    alliances: dict[str, list[str]] = Field(
+        default_factory=dict,
+        description="Nation-to-nation alliance map used by observation filtering.",
+    )
+    map_adjacency: dict[str, list[str]] = Field(
+        default_factory=dict,
+        description="Map node adjacency used to determine local observation proximity.",
+    )
+    latest_turn_result: TurnResult | None = Field(
+        default=None,
+        description="Most recent processed turn result cached for observation filtering.",
+    )
 
     @model_validator(mode="after")
     def validate_entity_keys(self) -> "WorldState":
@@ -74,6 +113,24 @@ class WorldState(BaseModel):
         for entity_id, actor in self.actors.items():
             if entity_id != actor.entity_id:
                 msg = f"Actor key '{entity_id}' does not match entity_id '{actor.entity_id}'."
+                raise ValueError(msg)
+        for player_id, player in self.players.items():
+            if player_id != player.player_id:
+                msg = f"Player key '{player_id}' does not match player_id '{player.player_id}'."
+                raise ValueError(msg)
+            if player.nation_id not in self.nations:
+                msg = f"Player '{player_id}' references unknown nation '{player.nation_id}'."
+                raise ValueError(msg)
+        for nation_id, allied_nations in self.alliances.items():
+            if nation_id not in self.nations:
+                msg = f"Alliance source '{nation_id}' is not a known nation."
+                raise ValueError(msg)
+            unknown_allies = [ally_id for ally_id in allied_nations if ally_id not in self.nations]
+            if unknown_allies:
+                msg = (
+                    f"Alliance source '{nation_id}' references unknown allies "
+                    f"{', '.join(sorted(unknown_allies))}."
+                )
                 raise ValueError(msg)
         return self
 
@@ -178,3 +235,6 @@ class TurnResult(BaseModel):
         default_factory=list,
         description="Concrete state mutations applied while processing the packet.",
     )
+
+
+WorldState.model_rebuild()
