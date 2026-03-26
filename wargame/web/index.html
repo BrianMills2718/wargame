@@ -8,98 +8,131 @@
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: 'Courier New', monospace; background: #0a0a0f; color: #c0c0c0; height: 100vh; display: flex; flex-direction: column; }
 
-  header { background: #111118; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #2a2a35; }
-  header h1 { font-size: 16px; color: #e0e0e0; letter-spacing: 2px; }
-  header .status { font-size: 12px; color: #888; }
-  header .turn-badge { background: #1a3a2a; color: #4ade80; padding: 4px 12px; border-radius: 4px; font-size: 13px; font-weight: bold; }
+  /* Header */
+  header { background: #111118; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #2a2a35; }
+  header h1 { font-size: 14px; color: #e0e0e0; letter-spacing: 2px; }
+  .header-right { display: flex; gap: 12px; align-items: center; }
+  .status { font-size: 11px; color: #888; }
+  .turn-badge { background: #1a3a2a; color: #4ade80; padding: 3px 10px; border-radius: 4px; font-size: 12px; font-weight: bold; }
+  .model-badge { font-size: 10px; color: #666; background: #151520; padding: 3px 8px; border-radius: 3px; }
+  .cost-badge { font-size: 10px; color: #eab308; }
 
+  /* Main layout */
   .main { display: flex; flex: 1; overflow: hidden; }
 
-  /* Left panel — state variables */
-  .panel-left { width: 320px; background: #0d0d14; border-right: 1px solid #2a2a35; overflow-y: auto; padding: 12px; }
-  .panel-left h2 { font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+  /* Tab system */
+  .tab-bar { display: flex; background: #0d0d14; border-bottom: 1px solid #2a2a35; }
+  .tab-btn { background: none; border: none; color: #666; padding: 8px 14px; font-family: inherit; font-size: 11px; cursor: pointer; border-bottom: 2px solid transparent; text-transform: uppercase; letter-spacing: 0.5px; }
+  .tab-btn:hover { color: #999; }
+  .tab-btn.active { color: #4ade80; border-bottom-color: #4ade80; }
+  .tab-content { display: none; flex: 1; overflow-y: auto; padding: 12px; }
+  .tab-content.active { display: block; }
 
-  .var-group { margin-bottom: 16px; }
-  .var-group-title { font-size: 11px; color: #666; text-transform: uppercase; margin-bottom: 6px; border-bottom: 1px solid #1a1a25; padding-bottom: 4px; }
+  /* Left panel */
+  .panel-left { width: 340px; background: #0d0d14; border-right: 1px solid #2a2a35; display: flex; flex-direction: column; }
 
-  .var-row { display: flex; align-items: center; margin-bottom: 3px; font-size: 12px; }
-  .var-name { width: 140px; color: #999; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .var-bar-bg { flex: 1; height: 10px; background: #1a1a25; border-radius: 2px; margin: 0 6px; position: relative; }
+  /* Variable display */
+  .var-section { margin-bottom: 14px; }
+  .var-section-title { font-size: 10px; color: #555; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; border-bottom: 1px solid #1a1a25; padding-bottom: 3px; }
+  .var-row { display: flex; align-items: center; margin-bottom: 2px; font-size: 11px; }
+  .var-name { width: 150px; color: #999; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .var-bar-bg { flex: 1; height: 8px; background: #1a1a25; border-radius: 2px; margin: 0 6px; }
   .var-bar { height: 100%; border-radius: 2px; transition: width 0.5s ease; }
   .var-bar.security { background: #ef4444; }
   .var-bar.political { background: #3b82f6; }
   .var-bar.economic { background: #eab308; }
   .var-bar.perceptual { background: #a855f7; }
-  .var-value { width: 40px; text-align: right; color: #ccc; font-size: 11px; }
+  .var-value { width: 38px; text-align: right; color: #aaa; font-size: 10px; }
+  .var-delta { width: 45px; text-align: right; font-size: 10px; }
+  .var-delta.pos { color: #4ade80; }
+  .var-delta.neg { color: #f87171; }
 
-  /* Center panel — narrative feed */
+  /* Center panel */
   .panel-center { flex: 1; display: flex; flex-direction: column; }
 
-  .narrative-feed { flex: 1; overflow-y: auto; padding: 16px; }
-  .turn-block { margin-bottom: 20px; border-left: 2px solid #2a2a35; padding-left: 12px; }
-  .turn-header { font-size: 13px; color: #4ade80; font-weight: bold; margin-bottom: 8px; }
-  .mech-deltas { font-size: 11px; color: #666; margin-bottom: 8px; }
-  .action-block { margin-bottom: 10px; }
+  /* Narrative */
+  .narrative-feed { flex: 1; overflow-y: auto; padding: 14px; }
+  .turn-block { margin-bottom: 16px; border-left: 2px solid #2a2a35; padding-left: 10px; }
+  .turn-header { font-size: 12px; color: #4ade80; font-weight: bold; margin-bottom: 6px; }
+  .mech-summary { font-size: 10px; color: #555; margin-bottom: 6px; cursor: pointer; }
+  .mech-summary:hover { color: #888; }
+  .mech-detail { display: none; font-size: 10px; color: #666; margin-bottom: 6px; padding-left: 8px; }
+
+  .action-block { margin-bottom: 12px; padding: 8px; background: #0d0d14; border: 1px solid #1a1a25; border-radius: 4px; }
+  .action-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
   .action-actor { font-size: 12px; font-weight: bold; }
   .action-actor.us { color: #3b82f6; }
   .action-actor.iran { color: #ef4444; }
-  .action-intent { font-size: 12px; color: #999; margin: 2px 0; }
-  .action-outcome { font-size: 12px; padding: 4px 8px; border-radius: 3px; margin: 4px 0; }
-  .action-outcome.critical_success { background: #052e16; color: #4ade80; border: 1px solid #166534; }
-  .action-outcome.success { background: #052e16; color: #86efac; border: 1px solid #15803d; }
-  .action-outcome.partial { background: #1a1a00; color: #fde047; border: 1px solid #854d0e; }
-  .action-outcome.failure { background: #1c0a0a; color: #fca5a5; border: 1px solid #991b1b; }
-  .action-outcome.critical_failure { background: #2a0a0a; color: #f87171; border: 1px solid #dc2626; }
-  .action-narrative { font-size: 12px; color: #b0b0b0; margin: 4px 0; line-height: 1.5; }
+  .action-cat { font-size: 10px; color: #666; background: #151520; padding: 2px 6px; border-radius: 3px; }
+  .action-intent { font-size: 11px; color: #999; margin: 4px 0; }
+  .action-instruments { font-size: 10px; color: #555; margin-bottom: 4px; }
+  .action-outcome { display: inline-block; font-size: 11px; padding: 3px 8px; border-radius: 3px; margin: 4px 0; font-weight: bold; }
+  .action-outcome.critical_success { background: #052e16; color: #4ade80; }
+  .action-outcome.success { background: #052e16; color: #86efac; }
+  .action-outcome.partial { background: #1a1a00; color: #fde047; }
+  .action-outcome.failure { background: #1c0a0a; color: #fca5a5; }
+  .action-outcome.critical_failure { background: #2a0a0a; color: #f87171; }
+  .action-narrative { font-size: 11px; color: #b0b0b0; margin: 4px 0; line-height: 1.5; }
 
-  .intel-block { margin-top: 8px; padding: 8px; background: #0a0f1a; border: 1px solid #1e3a5f; border-radius: 4px; }
-  .intel-header { font-size: 11px; color: #60a5fa; text-transform: uppercase; margin-bottom: 4px; }
-  .intel-item { font-size: 12px; color: #93c5fd; margin: 2px 0; }
+  /* GM details (collapsible) */
+  .gm-toggle { font-size: 10px; color: #7c3aed; cursor: pointer; margin-top: 4px; }
+  .gm-toggle:hover { color: #a855f7; }
+  .gm-details { display: none; margin-top: 6px; padding: 8px; background: #0a0814; border: 1px solid #2d1f5f; border-radius: 4px; }
+  .gm-details.open { display: block; }
+  .gm-label { font-size: 10px; color: #7c3aed; text-transform: uppercase; margin-bottom: 3px; }
+  .gm-reasoning { font-size: 11px; color: #a78bfa; line-height: 1.4; margin-bottom: 8px; }
+  .prob-table { font-size: 10px; width: 100%; border-collapse: collapse; margin-bottom: 6px; }
+  .prob-table th { text-align: left; color: #666; padding: 2px 4px; border-bottom: 1px solid #2a2a35; }
+  .prob-table td { padding: 2px 4px; color: #bbb; }
+  .prob-table tr.chosen { background: #0a1a0a; }
+  .prob-bar { display: inline-block; height: 6px; border-radius: 2px; vertical-align: middle; }
+  .delta-pos { color: #4ade80; }
+  .delta-neg { color: #f87171; }
+  .applied-label { font-size: 10px; color: #4ade80; margin-top: 4px; }
 
-  .gm-block { margin-top: 6px; padding: 8px; background: #0f0a1a; border: 1px solid #3b1f5f; border-radius: 4px; }
-  .gm-header { font-size: 11px; color: #c084fc; text-transform: uppercase; margin-bottom: 4px; }
-  .gm-reasoning { font-size: 11px; color: #a78bfa; line-height: 1.4; margin-bottom: 6px; }
-  .prob-table { font-size: 11px; width: 100%; border-collapse: collapse; }
-  .prob-table th { text-align: left; color: #888; padding: 2px 6px; border-bottom: 1px solid #2a2a35; }
-  .prob-table td { padding: 2px 6px; color: #c0c0c0; }
-  .prob-table tr.chosen { background: #1a2a1a; }
-  .prob-bar { display: inline-block; height: 8px; border-radius: 2px; vertical-align: middle; margin-right: 4px; }
-  .transitions-list { font-size: 11px; color: #999; margin-top: 4px; }
-  .transitions-list span.pos { color: #4ade80; }
-  .transitions-list span.neg { color: #f87171; }
+  /* Intel block */
+  .intel-block { margin-top: 6px; padding: 6px 8px; background: #0a0f1a; border: 1px solid #1e3a5f; border-radius: 4px; }
+  .intel-header { font-size: 10px; color: #60a5fa; text-transform: uppercase; margin-bottom: 3px; }
+  .intel-item { font-size: 11px; color: #93c5fd; margin: 2px 0; }
 
   /* Command input */
-  .command-area { border-top: 1px solid #2a2a35; padding: 12px 16px; background: #0d0d14; }
-  .command-area label { font-size: 11px; color: #888; text-transform: uppercase; display: block; margin-bottom: 4px; }
+  .command-area { border-top: 1px solid #2a2a35; padding: 10px 14px; background: #0d0d14; }
   .command-row { display: flex; gap: 8px; }
-  .command-input { flex: 1; background: #111118; border: 1px solid #2a2a35; color: #e0e0e0; padding: 10px 14px; font-family: inherit; font-size: 14px; border-radius: 4px; outline: none; }
+  .command-input { flex: 1; background: #111118; border: 1px solid #2a2a35; color: #e0e0e0; padding: 10px 14px; font-family: inherit; font-size: 13px; border-radius: 4px; outline: none; }
   .command-input:focus { border-color: #4ade80; }
-  .command-input::placeholder { color: #555; }
-  .send-btn { background: #166534; color: #4ade80; border: 1px solid #22c55e; padding: 10px 20px; font-family: inherit; font-size: 13px; cursor: pointer; border-radius: 4px; font-weight: bold; }
+  .command-input::placeholder { color: #444; }
+  .send-btn { background: #166534; color: #4ade80; border: 1px solid #22c55e; padding: 10px 20px; font-family: inherit; font-size: 12px; cursor: pointer; border-radius: 4px; font-weight: bold; }
   .send-btn:hover { background: #15803d; }
   .send-btn:disabled { background: #1a1a25; color: #555; border-color: #2a2a35; cursor: not-allowed; }
 
-  /* Right panel — chart */
-  .panel-right { width: 360px; background: #0d0d14; border-left: 1px solid #2a2a35; padding: 12px; overflow-y: auto; }
-  .panel-right h2 { font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
-  .chart-container { margin-bottom: 12px; }
-  .chart-title { font-size: 11px; color: #999; margin-bottom: 4px; }
-  canvas { width: 100% !important; height: 80px !important; }
+  /* Right panel */
+  .panel-right { width: 340px; background: #0d0d14; border-left: 1px solid #2a2a35; display: flex; flex-direction: column; }
+  .chart-container { margin-bottom: 8px; }
+  .chart-title { font-size: 10px; color: #888; margin-bottom: 2px; }
+
+  /* Turn list (right panel tab) */
+  .turn-list-item { padding: 6px 8px; border-bottom: 1px solid #1a1a25; font-size: 11px; cursor: pointer; }
+  .turn-list-item:hover { background: #151520; }
+  .turn-list-actor { font-weight: bold; }
+  .turn-list-outcome { font-size: 10px; padding: 1px 4px; border-radius: 2px; }
+
+  /* Loading overlay */
+  .loading-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 100; justify-content: center; align-items: center; }
+  .loading-overlay.active { display: flex; }
+  .loading-spinner { color: #4ade80; font-size: 14px; animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 0.4; } 50% { opacity: 1; } }
 
   /* Start screen */
   .start-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; }
-  .start-screen h1 { font-size: 24px; color: #e0e0e0; margin-bottom: 8px; letter-spacing: 3px; }
-  .start-screen p { color: #888; margin-bottom: 24px; }
-  .start-options { display: flex; gap: 12px; flex-direction: column; width: 300px; }
-  .start-btn { background: #111118; border: 1px solid #2a2a35; color: #c0c0c0; padding: 14px; font-family: inherit; font-size: 14px; cursor: pointer; border-radius: 4px; text-align: left; }
+  .start-screen h1 { font-size: 22px; color: #e0e0e0; margin-bottom: 6px; letter-spacing: 3px; }
+  .start-screen p { color: #888; margin-bottom: 20px; font-size: 13px; }
+  .start-options { display: flex; gap: 10px; flex-direction: column; width: 320px; }
+  .start-btn { background: #111118; border: 1px solid #2a2a35; color: #c0c0c0; padding: 12px; font-family: inherit; font-size: 13px; cursor: pointer; border-radius: 4px; text-align: left; }
   .start-btn:hover { border-color: #4ade80; color: #4ade80; }
-  .start-btn .label { font-weight: bold; display: block; margin-bottom: 4px; }
-  .start-btn .desc { font-size: 11px; color: #666; }
+  .start-btn .label { font-weight: bold; display: block; margin-bottom: 3px; }
+  .start-btn .desc { font-size: 10px; color: #666; }
 
-  .loading { color: #eab308; font-size: 13px; }
-
-  /* Scrollbar */
-  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar { width: 5px; }
   ::-webkit-scrollbar-track { background: #0a0a0f; }
   ::-webkit-scrollbar-thumb { background: #2a2a35; border-radius: 3px; }
 </style>
@@ -108,41 +141,60 @@
 
 <header>
   <h1>GEOPOLITICAL WARGAME</h1>
-  <div class="status" id="status">Not started</div>
-  <div class="turn-badge" id="turn-badge" style="display:none">TURN 0</div>
+  <div class="header-right">
+    <span class="model-badge" id="model-badge"></span>
+    <span class="cost-badge" id="cost-badge"></span>
+    <span class="status" id="status">Not started</span>
+    <span class="turn-badge" id="turn-badge" style="display:none">TURN 0</span>
+  </div>
 </header>
+
+<div class="loading-overlay" id="loading">
+  <div class="loading-spinner">Processing turn...</div>
+</div>
 
 <div class="main" id="app">
   <!-- Start screen -->
   <div class="start-screen" id="start-screen">
     <h1>WARGAME</h1>
-    <p>Geopolitical crisis simulation</p>
+    <p>US-Iran Crisis Simulation</p>
     <div class="start-options">
-      <button class="start-btn" onclick="startGame('actor_us', 'human_vs_ai')">
+      <button class="start-btn" onclick="startGame('actor_us','human_vs_ai')">
         <span class="label">Play as United States</span>
-        <span class="desc">vs AI Iran — manage sanctions, deterrence, and diplomacy</span>
+        <span class="desc">vs AI Iran</span>
       </button>
-      <button class="start-btn" onclick="startGame('actor_iran', 'human_vs_ai')">
+      <button class="start-btn" onclick="startGame('actor_iran','human_vs_ai')">
         <span class="label">Play as Iran</span>
-        <span class="desc">vs AI United States — navigate survival, sovereignty, and regional power</span>
+        <span class="desc">vs AI United States</span>
       </button>
-      <button class="start-btn" onclick="startGame('actor_us', 'ai_vs_ai')">
+      <button class="start-btn" onclick="startGame('actor_us','ai_vs_ai')">
         <span class="label">Watch AI vs AI</span>
-        <span class="desc">Observe two AI opponents play out the scenario</span>
+        <span class="desc">Spectator / God Mode</span>
       </button>
     </div>
   </div>
 
-  <!-- Game screen (hidden until start) -->
+  <!-- Game layout -->
   <div class="panel-left" id="panel-left" style="display:none">
-    <h2 id="panel-left-title">Intelligence Estimates</h2>
-    <div id="var-list"></div>
+    <div class="tab-bar">
+      <button class="tab-btn active" onclick="switchLeftTab('state')">State</button>
+      <button class="tab-btn" onclick="switchLeftTab('resources')">Resources</button>
+      <button class="tab-btn" onclick="switchLeftTab('causal')">Causal</button>
+    </div>
+    <div class="tab-content active" id="left-tab-state">
+      <div id="var-list"></div>
+    </div>
+    <div class="tab-content" id="left-tab-resources">
+      <div id="resource-list" style="font-size:11px;color:#999;padding:8px;">Resources not yet tracked per-turn. Coming soon.</div>
+    </div>
+    <div class="tab-content" id="left-tab-causal">
+      <div id="causal-list"></div>
+    </div>
   </div>
 
   <div class="panel-center" id="panel-center" style="display:none">
     <div class="narrative-feed" id="narrative-feed"></div>
     <div class="command-area" id="command-area">
-      <label id="command-label">Your orders</label>
       <div class="command-row">
         <input type="text" class="command-input" id="command-input" placeholder="Enter your directive..." autofocus>
         <button class="send-btn" id="send-btn" onclick="submitCommand()">EXECUTE</button>
@@ -151,149 +203,153 @@
   </div>
 
   <div class="panel-right" id="panel-right" style="display:none">
-    <h2>Variable Trajectories</h2>
-    <div id="charts"></div>
+    <div class="tab-bar">
+      <button class="tab-btn active" onclick="switchRightTab('charts')">Charts</button>
+      <button class="tab-btn" onclick="switchRightTab('turns')">Turn Log</button>
+    </div>
+    <div class="tab-content active" id="right-tab-charts">
+      <div id="charts"></div>
+    </div>
+    <div class="tab-content" id="right-tab-turns">
+      <div id="turn-list"></div>
+    </div>
   </div>
 </div>
 
 <script>
-// State
 let gameState = null;
 let isProcessing = false;
 let turnCount = 0;
 let isAiVsAi = false;
+let totalCost = 0;
+let prevEstimates = {};
 
-const DOMAIN_COLORS = {
-  security: '#ef4444',
-  political: '#3b82f6',
-  economic: '#eab308',
-  perceptual: '#a855f7',
-};
-
+const DOMAIN_COLORS = { security:'#ef4444', political:'#3b82f6', economic:'#eab308', perceptual:'#a855f7' };
 const VAR_DOMAINS = {
-  sv_nuclear_latency: 'security', sv_deterrence_balance: 'security',
-  sv_military_tension: 'security', sv_force_posture: 'security',
-  sv_proxy_network_presence: 'security', sv_proxy_activity: 'security',
-  sv_regional_depth: 'security',
-  sv_sanctions_intensity: 'economic', sv_internal_legitimacy: 'political',
-  sv_elite_cohesion: 'political', sv_alliance_credibility: 'political',
-  sv_diplomatic_engagement: 'political', sv_regime_survival_risk: 'political',
-  sv_us_credibility: 'political',
-  sv_perceived_us_coercion: 'perceptual', sv_perceived_iran_threat: 'perceptual',
+  sv_nuclear_latency:'security', sv_deterrence_balance:'security', sv_military_tension:'security',
+  sv_force_posture:'security', sv_proxy_network_presence:'security', sv_proxy_activity:'security',
+  sv_regional_depth:'security', sv_sanctions_intensity:'economic', sv_internal_legitimacy:'political',
+  sv_elite_cohesion:'political', sv_alliance_credibility:'political', sv_diplomatic_engagement:'political',
+  sv_regime_survival_risk:'political', sv_us_credibility:'political',
+  sv_perceived_us_coercion:'perceptual', sv_perceived_iran_threat:'perceptual',
 };
+const VAR_RANGES = { sv_nuclear_latency:[0,36], sv_deterrence_balance:[-1,1] };
 
-const VAR_RANGES = {
-  sv_nuclear_latency: [0, 36],
-};
+function switchLeftTab(name) {
+  document.querySelectorAll('.panel-left .tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.panel-left .tab-content').forEach(c => c.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('left-tab-' + name).classList.add('active');
+}
+function switchRightTab(name) {
+  document.querySelectorAll('.panel-right .tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.panel-right .tab-content').forEach(c => c.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('right-tab-' + name).classList.add('active');
+}
 
 async function startGame(playAs, mode) {
   document.getElementById('start-screen').style.display = 'none';
-  document.getElementById('panel-left').style.display = '';
-  document.getElementById('panel-center').style.display = '';
-  document.getElementById('panel-right').style.display = '';
-  document.getElementById('status').textContent = 'Starting game...';
+  ['panel-left','panel-center','panel-right'].forEach(id => document.getElementById(id).style.display = '');
   isAiVsAi = mode === 'ai_vs_ai';
+  if (isAiVsAi) document.getElementById('command-area').style.display = 'none';
+  document.getElementById('model-badge').textContent = 'gemini-2.5-flash';
 
-  if (isAiVsAi) {
-    document.getElementById('command-area').style.display = 'none';
-  }
+  const res = await fetch('/api/start', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({scenario_path:'scenarios/us_iran_2026.yaml', play_as:playAs, mode}),
+  });
+  gameState = await res.json();
+  turnCount = 0;
+  totalCost = 0;
 
-  try {
-    const res = await fetch('/api/start', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({scenario_path: 'scenarios/us_iran_2026.yaml', play_as: playAs, mode}),
-    });
-    gameState = await res.json();
-    turnCount = 0;
+  document.getElementById('status').textContent = isAiVsAi ? 'Spectator (God Mode)' : gameState.actor_names[playAs];
+  document.getElementById('turn-badge').style.display = '';
+  document.getElementById('turn-badge').textContent = 'TURN 0';
 
-    document.getElementById('status').textContent = `${gameState.scenario} | ${gameState.actor_names[playAs] || 'Spectator (God Mode)'}`;
-    document.getElementById('turn-badge').style.display = '';
-    document.getElementById('turn-badge').textContent = 'TURN 0';
+  renderVariables(gameState.estimates);
+  renderCausalInfo();
+  addSystemMessage(isAiVsAi
+    ? 'AI vs AI — God Mode. You see canonical state, GM reasoning, and probability tables.'
+    : `You are ${gameState.actor_names[playAs]}. Type commands to act.`);
 
-    if (isAiVsAi) {
-      document.getElementById('panel-left-title').textContent = 'Canonical State (God Mode)';
-    }
-
-    renderVariables(gameState.estimates);
-    addNarrative({turn: 0, actions: [], observations: {}, mechanical_deltas: {}},
-      isAiVsAi ? 'AI vs AI mode. You see everything — canonical state, GM reasoning, probability tables.' : `Game started. You are ${gameState.actor_names[playAs]}.`);
-
-    if (isAiVsAi) {
-      runAiVsAi();
-    }
-  } catch (e) {
-    document.getElementById('status').textContent = 'Error: ' + e.message;
-  }
+  if (isAiVsAi) runAiVsAi();
 }
 
 async function runAiVsAi() {
-  const totalTurns = 10;
-  for (let i = 0; i < totalTurns; i++) {
-    await submitCommand('AI auto-play');
-    await new Promise(r => setTimeout(r, 500)); // Brief pause for readability
+  for (let i = 0; i < 10; i++) {
+    await submitCommand('auto');
+    await new Promise(r => setTimeout(r, 300));
   }
-  addSystemMessage('Game complete. AI vs AI finished ' + totalTurns + ' turns.');
+  addSystemMessage('Game complete.');
 }
 
 async function submitCommand(directive) {
   if (isProcessing) return;
-
   const input = document.getElementById('command-input');
-  const cmd = directive || input.value.trim();
+  const cmd = directive || (input ? input.value.trim() : '');
   if (!cmd && !isAiVsAi) return;
 
   isProcessing = true;
-  const btn = document.getElementById('send-btn');
-  if (btn) btn.disabled = true;
+  document.getElementById('loading').classList.add('active');
+  if (document.getElementById('send-btn')) document.getElementById('send-btn').disabled = true;
   if (input) input.value = '';
-  document.getElementById('status').textContent = 'Processing turn...';
 
   try {
     const res = await fetch('/api/command', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
+      method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({directive: cmd}),
     });
     const data = await res.json();
     turnCount = data.turn_result.turn;
 
     document.getElementById('turn-badge').textContent = `TURN ${turnCount}`;
-    renderVariables(data.estimates);
+    prevEstimates = Object.assign({}, data.estimates);
+    renderVariables(data.canonical || data.estimates, data.estimates);
     renderCharts(data.history);
-    addNarrative(data.turn_result);
-
-    document.getElementById('status').textContent = gameState.scenario + ` | Turn ${turnCount}`;
-  } catch (e) {
-    document.getElementById('status').textContent = 'Error: ' + e.message;
+    addTurnNarrative(data.turn_result);
+    addTurnListEntry(data.turn_result);
+  } catch(e) {
+    addSystemMessage('Error: ' + e.message);
   }
 
+  document.getElementById('loading').classList.remove('active');
   isProcessing = false;
-  if (btn) btn.disabled = false;
+  if (document.getElementById('send-btn')) document.getElementById('send-btn').disabled = false;
   if (input) input.focus();
 }
 
-function renderVariables(estimates) {
+function renderVariables(canonical, estimates) {
   const container = document.getElementById('var-list');
+  const est = estimates || canonical;
   const groups = {};
 
-  for (const [varId, value] of Object.entries(estimates)) {
+  for (const [varId, value] of Object.entries(canonical)) {
     const domain = VAR_DOMAINS[varId] || 'other';
     if (!groups[domain]) groups[domain] = [];
     const range = VAR_RANGES[varId] || [0, 1];
     const pct = Math.min(100, Math.max(0, ((value - range[0]) / (range[1] - range[0])) * 100));
-    groups[domain].push({varId, value, pct, domain});
+    const prev = prevEstimates[varId];
+    const delta = prev !== undefined ? value - prev : null;
+    groups[domain].push({varId, value, pct, domain, delta});
   }
 
   let html = '';
-  for (const [domain, vars] of Object.entries(groups).sort()) {
-    html += `<div class="var-group"><div class="var-group-title">${domain}</div>`;
-    for (const v of vars.sort((a, b) => a.varId.localeCompare(b.varId))) {
-      const name = v.varId.replace('sv_', '').replace(/_/g, ' ');
+  const domainOrder = ['security','economic','political','perceptual'];
+  for (const domain of domainOrder) {
+    const vars = groups[domain];
+    if (!vars) continue;
+    html += `<div class="var-section"><div class="var-section-title">${domain}</div>`;
+    for (const v of vars.sort((a,b) => a.varId.localeCompare(b.varId))) {
+      const name = v.varId.replace('sv_','').replace(/_/g,' ');
+      const deltaStr = v.delta !== null && Math.abs(v.delta) > 0.005
+        ? `<span class="var-delta ${v.delta > 0 ? 'pos' : 'neg'}">${v.delta > 0 ? '+' : ''}${v.delta.toFixed(2)}</span>`
+        : '<span class="var-delta"></span>';
       html += `<div class="var-row">
         <span class="var-name" title="${v.varId}">${name}</span>
         <div class="var-bar-bg"><div class="var-bar ${v.domain}" style="width:${v.pct}%"></div></div>
         <span class="var-value">${v.value.toFixed(2)}</span>
+        ${deltaStr}
       </div>`;
     }
     html += '</div>';
@@ -301,123 +357,158 @@ function renderVariables(estimates) {
   container.innerHTML = html;
 }
 
-function renderCharts(history) {
-  const container = document.getElementById('charts');
-  let html = '';
+function renderCausalInfo() {
+  const container = document.getElementById('causal-list');
+  const edges = [
+    {s:'sanctions_intensity', t:'internal_legitimacy', e:'-0.15', lag:'1 turn'},
+    {s:'sanctions_intensity', t:'elite_cohesion', e:'-0.08', lag:'2 turns'},
+    {s:'sanctions_intensity', t:'perceived_us_coercion', e:'+0.25', lag:'immediate'},
+    {s:'proxy_network_presence', t:'deterrence_balance', e:'-0.20', lag:'immediate'},
+    {s:'proxy_network_presence', t:'regional_depth', e:'+0.15', lag:'immediate'},
+    {s:'proxy_activity', t:'military_tension', e:'+0.20', lag:'immediate'},
+    {s:'proxy_activity', t:'perceived_iran_threat', e:'+0.30', lag:'immediate'},
+    {s:'force_posture', t:'deterrence_balance', e:'+0.15', lag:'immediate'},
+    {s:'force_posture', t:'military_tension', e:'+0.10', lag:'immediate'},
+    {s:'military_tension', t:'regime_survival_risk', e:'+0.10', lag:'immediate'},
+    {s:'diplomatic_engagement', t:'military_tension', e:'-0.10', lag:'immediate'},
+    {s:'diplomatic_engagement', t:'alliance_credibility', e:'+0.05', lag:'1 turn'},
+    {s:'internal_legitimacy', t:'regime_survival_risk', e:'-0.20', lag:'immediate'},
+    {s:'elite_cohesion', t:'regime_survival_risk', e:'-0.15', lag:'immediate'},
+  ];
+  let html = '<div style="font-size:10px;color:#666;margin-bottom:8px;">Causal edges (mechanical propagation)</div>';
+  for (const e of edges) {
+    const color = e.e.startsWith('-') ? '#f87171' : '#4ade80';
+    html += `<div style="font-size:10px;margin-bottom:3px;">
+      <span style="color:#999">${e.s}</span>
+      <span style="color:${color}"> ${e.e} </span>
+      <span style="color:#999">&rarr; ${e.t}</span>
+      <span style="color:#555;font-size:9px;"> (${e.lag})</span>
+    </div>`;
+  }
 
-  const keyVars = ['sv_military_tension', 'sv_sanctions_intensity', 'sv_nuclear_latency',
-    'sv_deterrence_balance', 'sv_regime_survival_risk', 'sv_proxy_activity'];
-
-  for (const varId of keyVars) {
-    if (!history[varId]) continue;
-    const points = history[varId];
-    const range = VAR_RANGES[varId] || [0, 1];
-    const domain = VAR_DOMAINS[varId] || 'other';
-    const color = DOMAIN_COLORS[domain] || '#888';
-    const name = varId.replace('sv_', '').replace(/_/g, ' ');
-
-    // SVG sparkline
-    const w = 320, h = 60, pad = 4;
-    const maxTurn = Math.max(points[points.length - 1].turn, 1);
-    const pathParts = points.map((p, i) => {
-      const x = pad + (p.turn / maxTurn) * (w - 2 * pad);
-      const y = h - pad - ((p.value - range[0]) / (range[1] - range[0])) * (h - 2 * pad);
-      return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
-    }).join(' ');
-
-    const lastVal = points[points.length - 1].value;
-    html += `<div class="chart-container">
-      <div class="chart-title">${name}: ${lastVal.toFixed(2)}</div>
-      <svg width="${w}" height="${h}" style="background:#111118;border-radius:4px;">
-        <path d="${pathParts}" fill="none" stroke="${color}" stroke-width="2"/>
-      </svg>
+  html += '<div style="font-size:10px;color:#666;margin-top:12px;margin-bottom:6px;">Decay/momentum (per turn)</div>';
+  const dynamics = [
+    {v:'military_tension', r:'-0.05'}, {v:'diplomatic_engagement', r:'-0.08'},
+    {v:'proxy_activity', r:'-0.03'}, {v:'proxy_network_presence', r:'-0.01'},
+    {v:'sanctions_intensity', r:'-0.02'}, {v:'nuclear_latency', r:'-0.30 (momentum)'},
+    {v:'force_posture', r:'-0.02'},
+  ];
+  for (const d of dynamics) {
+    html += `<div style="font-size:10px;margin-bottom:2px;">
+      <span style="color:#999">${d.v}</span>
+      <span style="color:#f87171"> ${d.r}</span>
     </div>`;
   }
   container.innerHTML = html;
 }
 
-function addNarrative(turnResult, systemMsg) {
-  const feed = document.getElementById('narrative-feed');
-
-  let html = `<div class="turn-block"><div class="turn-header">Turn ${turnResult.turn}</div>`;
-
-  if (systemMsg) {
-    html += `<div class="action-narrative">${systemMsg}</div>`;
+function renderCharts(history) {
+  const container = document.getElementById('charts');
+  const keyVars = ['sv_military_tension','sv_sanctions_intensity','sv_nuclear_latency',
+    'sv_deterrence_balance','sv_regime_survival_risk','sv_proxy_activity',
+    'sv_internal_legitimacy','sv_force_posture','sv_perceived_us_coercion','sv_perceived_iran_threat'];
+  let html = '';
+  for (const varId of keyVars) {
+    if (!history[varId]) continue;
+    const points = history[varId];
+    const range = VAR_RANGES[varId] || [0,1];
+    const domain = VAR_DOMAINS[varId] || 'other';
+    const color = DOMAIN_COLORS[domain] || '#888';
+    const name = varId.replace('sv_','').replace(/_/g,' ');
+    const w = 310, h = 50, pad = 4;
+    const maxTurn = Math.max(points[points.length-1].turn, 1);
+    const pathParts = points.map((p,i) => {
+      const x = pad + (p.turn/maxTurn) * (w-2*pad);
+      const y = h - pad - ((p.value-range[0])/(range[1]-range[0])) * (h-2*pad);
+      return `${i===0?'M':'L'} ${x} ${Math.max(pad, Math.min(h-pad, y))}`;
+    }).join(' ');
+    const lastVal = points[points.length-1].value;
+    html += `<div class="chart-container">
+      <div class="chart-title">${name}: ${lastVal.toFixed(2)}</div>
+      <svg width="${w}" height="${h}" style="background:#0d0d14;border-radius:3px;">
+        <path d="${pathParts}" fill="none" stroke="${color}" stroke-width="1.5"/>
+      </svg></div>`;
   }
+  container.innerHTML = html;
+}
 
-  // Mechanical deltas
-  const mechEntries = Object.entries(turnResult.mechanical_deltas || {});
+function addTurnNarrative(tr) {
+  const feed = document.getElementById('narrative-feed');
+  let html = `<div class="turn-block"><div class="turn-header">Turn ${tr.turn}</div>`;
+
+  // Mechanical deltas (collapsible)
+  const mechEntries = Object.entries(tr.mechanical_deltas || {});
   if (mechEntries.length > 0) {
-    html += '<div class="mech-deltas">World dynamics: ';
-    html += mechEntries.map(([k, v]) => `${k.replace('sv_', '')} ${v > 0 ? '+' : ''}${v.toFixed(3)}`).join(', ');
+    const id = 'mech-' + tr.turn;
+    html += `<div class="mech-summary" onclick="document.getElementById('${id}').style.display = document.getElementById('${id}').style.display === 'block' ? 'none' : 'block'">
+      World dynamics: ${mechEntries.length} variables changed (click to expand)</div>`;
+    html += `<div class="mech-detail" id="${id}">`;
+    for (const [k,v] of mechEntries) {
+      const cls = v > 0 ? 'delta-pos' : 'delta-neg';
+      html += `<div><span style="color:#888">${k.replace('sv_','')}</span> <span class="${cls}">${v>0?'+':''}${v.toFixed(3)}</span></div>`;
+    }
     html += '</div>';
   }
 
   // Actions
-  for (const action of (turnResult.actions || [])) {
+  for (const action of (tr.actions || [])) {
     const side = action.actor_id.includes('us') ? 'us' : 'iran';
+    const gmId = `gm-${tr.turn}-${action.actor_id}`;
     html += `<div class="action-block">
-      <div class="action-actor ${side}">${action.actor} [${action.category}]</div>
+      <div class="action-header">
+        <span class="action-actor ${side}">${action.actor}</span>
+        <span class="action-cat">${action.category}</span>
+      </div>
       <div class="action-intent">${action.intent}</div>`;
-
-    if (action.instruments) {
-      html += `<div style="font-size:11px;color:#666;margin:2px 0;">Instruments: ${action.instruments.join(', ')}</div>`;
-    }
-
-    html += `<div class="action-outcome ${action.outcome}">${action.outcome.replace('_', ' ').toUpperCase()}</div>
+    if (action.instruments) html += `<div class="action-instruments">Instruments: ${action.instruments.join(', ')}</div>`;
+    html += `<div class="action-outcome ${action.outcome}">${action.outcome.replace(/_/g,' ').toUpperCase()}</div>
       <div class="action-narrative">${action.narrative}</div>`;
 
-    // GM details (spectator mode)
+    // GM details toggle
     if (action.gm_reasoning || action.probability_table) {
-      html += `<div class="gm-block">
-        <div class="gm-header">GM Adjudication</div>`;
-
+      html += `<div class="gm-toggle" onclick="document.getElementById('${gmId}').classList.toggle('open')">
+        Show GM adjudication details</div>`;
+      html += `<div class="gm-details" id="${gmId}">`;
       if (action.gm_reasoning) {
-        html += `<div class="gm-reasoning">${action.gm_reasoning}</div>`;
+        html += `<div class="gm-label">GM Reasoning</div><div class="gm-reasoning">${action.gm_reasoning}</div>`;
       }
-
       if (action.probability_table) {
-        html += `<table class="prob-table">
-          <tr><th>Outcome</th><th>Prob</th><th></th><th>State Changes</th></tr>`;
+        html += `<div class="gm-label">Probability Table</div>
+          <table class="prob-table"><tr><th>Outcome</th><th>Prob</th><th></th><th>If chosen</th></tr>`;
         for (const row of action.probability_table) {
-          const isChosen = row.outcome === action.outcome;
-          const barW = Math.round(row.probability * 200);
-          const barColor = isChosen ? '#4ade80' : '#555';
-          const transitions = (row.transitions || [])
-            .map(t => `<span class="${t.delta > 0 ? 'pos' : 'neg'}">${t.var.replace('sv_','')} ${t.delta > 0 ? '+' : ''}${t.delta}</span>`)
-            .join(', ');
-          html += `<tr class="${isChosen ? 'chosen' : ''}">
-            <td>${row.outcome.replace('_',' ')}${isChosen ? ' ◄' : ''}</td>
-            <td>${(row.probability * 100).toFixed(0)}%</td>
+          const chosen = row.outcome === action.outcome;
+          const barW = Math.round(row.probability * 180);
+          const barColor = chosen ? '#4ade80' : '#333';
+          const trans = (row.transitions||[]).map(t =>
+            `<span class="${t.delta>0?'delta-pos':'delta-neg'}">${t.var.replace('sv_','')} ${t.delta>0?'+':''}${t.delta}</span>`
+          ).join(', ');
+          html += `<tr class="${chosen?'chosen':''}">
+            <td>${row.outcome.replace(/_/g,' ')}${chosen?' ◄':''}</td>
+            <td>${(row.probability*100).toFixed(0)}%</td>
             <td><span class="prob-bar" style="width:${barW}px;background:${barColor}"></span></td>
-            <td class="transitions-list">${transitions || '—'}</td>
-          </tr>`;
+            <td>${trans||'—'}</td></tr>`;
         }
         html += '</table>';
       }
-
-      // Show the actual state changes that were applied
       if (action.gm_transitions && action.gm_transitions.length > 0) {
-        html += `<div class="transitions-list" style="margin-top:6px;">Applied: `;
+        html += `<div class="applied-label">Applied: `;
         html += action.gm_transitions.map(t =>
-          `<span class="${t.delta > 0 ? 'pos' : 'neg'}">${t.var.replace('sv_','')} ${t.delta > 0 ? '+' : ''}${t.delta}</span>`
-        ).join(', ');
-        html += '</div>';
+          `<span class="${t.delta>0?'delta-pos':'delta-neg'}">${t.var.replace('sv_','')} ${t.delta>0?'+':''}${t.delta}</span>`
+        ).join(', ') + '</div>';
       }
-
       html += '</div>';
     }
-
     html += '</div>';
   }
 
   // Intel briefing
-  const humanObs = turnResult.observations?.[gameState?.play_as];
-  if (humanObs && humanObs.length > 0) {
-    html += `<div class="intel-block"><div class="intel-header">Intelligence Briefing</div>`;
-    for (const obs of humanObs) {
-      html += `<div class="intel-item">${obs}</div>`;
-    }
+  const obs = tr.observations || {};
+  const actorObs = isAiVsAi ? obs : {[gameState?.play_as]: obs[gameState?.play_as]};
+  for (const [actorId, narratives] of Object.entries(actorObs)) {
+    if (!narratives || narratives.length === 0) continue;
+    const name = gameState?.actor_names?.[actorId] || actorId;
+    html += `<div class="intel-block"><div class="intel-header">Intel: ${name}</div>`;
+    for (const n of narratives) html += `<div class="intel-item">${n}</div>`;
     html += '</div>';
   }
 
@@ -426,20 +517,28 @@ function addNarrative(turnResult, systemMsg) {
   feed.scrollTop = feed.scrollHeight;
 }
 
+function addTurnListEntry(tr) {
+  const list = document.getElementById('turn-list');
+  let html = `<div class="turn-list-item">
+    <strong>Turn ${tr.turn}</strong><br>`;
+  for (const a of (tr.actions || [])) {
+    const color = a.actor_id.includes('us') ? '#3b82f6' : '#ef4444';
+    html += `<span class="turn-list-actor" style="color:${color}">${a.actor}</span>: ${a.category}
+      <span class="turn-list-outcome" style="background:${a.outcome.includes('success')?'#0a1a0a':a.outcome.includes('fail')?'#1a0a0a':'#1a1a00'};color:#ccc">${a.outcome.replace(/_/g,' ')}</span><br>`;
+  }
+  html += '</div>';
+  list.innerHTML = html + list.innerHTML;
+}
+
 function addSystemMessage(msg) {
   const feed = document.getElementById('narrative-feed');
   feed.innerHTML += `<div class="turn-block"><div class="turn-header" style="color:#eab308">${msg}</div></div>`;
   feed.scrollTop = feed.scrollHeight;
 }
 
-// Enter key to submit
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && !e.shiftKey) {
-    const input = document.getElementById('command-input');
-    if (document.activeElement === input) {
-      e.preventDefault();
-      submitCommand();
-    }
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey && document.activeElement === document.getElementById('command-input')) {
+    e.preventDefault(); submitCommand();
   }
 });
 </script>
