@@ -1,37 +1,32 @@
-# OpenClaw Mission: Wargame — Continue from Phase 1 CLI smoke test
-# Round 2. Prior run completed 5/6 Phase 1 criteria.
+# OpenClaw Mission: Wargame — Continue from Phase 2
+# Round 3. Phase 1 complete. llm_client installed.
 
-mission_id: wargame-round2
+mission_id: wargame-round3
 project_root: ~/projects/wargame
 
 objective: |
   You are building a geopolitical wargame at ~/projects/wargame.
 
-  The plan is docs/plans/01_implementation.md. Work through ALL FIVE PHASES.
+  The plan is docs/plans/01_implementation.md. Work through ALL remaining phases.
 
-  CURRENT STATE (from prior autonomous run):
-  - Phase 1 is 5/6 done. models.py, engine.py, scenario_loader.py all built.
-    Observation filtering is in engine.py. 14 tests pass.
-  - REMAINING Phase 1: CLI smoke test only. Build src/core/__main__.py that
-    loads scenarios/us_iran.yaml, processes one hardcoded AdjudicationPacket,
-    prints filtered observations for each player.
-  - After CLI smoke test passes, Phase 1 is complete. Move to Phase 2.
+  CURRENT STATE:
+  - Phase 1 COMPLETE: models.py, engine.py, scenario_loader.py, observation
+    filter, 17 tests, CLI smoke test. All working.
+  - llm_client is installed in the venv (pip install -e ~/projects/llm_client done).
+  - scenarios/us_iran.yaml exists with full 2-nation setup.
 
-  Phase 2: Game Master LLM. Wire llm_client for structured output. Build
-  GM prompt + AdjudicationPacket schema. Install llm_client first:
-  pip install -e ~/projects/llm_client
+  START FROM Phase 2 (Game Master LLM):
+  - Build src/gm/ module with GM prompt + AdjudicationPacket schema
+  - Use llm_client structured output (json_schema response_format, Pydantic)
+  - GM prompt goes in prompts/game_master.yaml (YAML/Jinja2 template)
+  - Required kwargs on every llm_client call: task=, trace_id=, max_budget=
+  - Test with round-trip: player action → GM → Core adjudication → observation
 
-  Phase 3: Sub-agent bureaucracy (Intel Chief, Diplomatic Envoy, Military Advisor).
-  Phase 4: Game loop (CLI, turn history, multi-player, replay).
-  Phase 5: Scoring + balance.
+  Then Phase 3 (Sub-agents), Phase 4 (Game loop), Phase 5 (Scoring).
 
-  IMPORTANT: Do NOT delete existing tests. Add new test files, don't modify
-  existing ones unless fixing a bug IN that test. The prior run was stopped
-  because the agent kept deleting tests.
-
-  RULES:
+  IMPORTANT RULES:
+  - Do NOT delete existing tests. Add new test files only.
   - Set project to "~/projects/wargame" and model to "codex" in every task
-  - Each task must cite which acceptance criterion it advances
   - Run pytest before committing. Commit with [Plan #1] prefix.
   - Do NOT generate meta-tasks (docs, policies, refactoring)
   - If blocked after 3 attempts, log blocker and move to next criterion
@@ -50,10 +45,6 @@ policy:
   poll_interval_s: 30
 
 success_criteria:
-  # Phase 1 (remaining)
-  - type: file_exists
-    path: scenarios/us_iran.yaml
-    description: US-Iran scenario exists
   - type: command
     command: ["python", "-m", "pytest", "tests/", "-q", "--tb=no"]
     description: All tests pass
