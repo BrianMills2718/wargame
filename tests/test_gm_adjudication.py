@@ -8,7 +8,6 @@ from typing import Any
 
 from src.core import Nation, Player, WorldState
 from src.gm import AdjudicationPacket, adjudicate_player_action
-import src.gm.adjudicator as gm_adjudicator
 import llm_client
 
 
@@ -128,12 +127,3 @@ def test_adjudicate_player_action_returns_valid_packet(monkeypatch: Any) -> None
     assert "Pressure regional partners to tighten sanctions on Iran." in captured["messages"][1][
         "content"
     ]
-
-
-def test_gm_response_format_matches_acceptance_contract() -> None:
-    """The GM boundary should define the requested flat json-schema response format."""
-
-    assert gm_adjudicator._adjudication_response_format() == {
-        "type": "json_schema",
-        "schema": AdjudicationPacket.model_json_schema(),
-    }

@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
-
 from src.core import WorldState
 from src.gm.models import AdjudicationPacket
 
@@ -34,25 +32,18 @@ def adjudicate_player_action(
         player_action=player_action,
         recent_turn_summary=recent_turn_summary,
     )
-    response_format = _adjudication_response_format()
     result = llm_client.call_llm(
         model,
         messages,
-        response_format=response_format,
+        response_format={
+            "type": "json_schema",
+            "schema": AdjudicationPacket.model_json_schema(),
+        },
         task=task,
         trace_id=trace_id,
         max_budget=max_budget,
     )
     return _parse_adjudication_packet(result.content)
-
-
-def _adjudication_response_format() -> dict[str, Any]:
-    """Expose the GM's structured-output contract as a plain JSON-schema payload."""
-
-    return {
-        "type": "json_schema",
-        "schema": AdjudicationPacket.model_json_schema(),
-    }
 
 
 def _render_game_master_prompt(
