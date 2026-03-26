@@ -10,8 +10,7 @@ import uuid
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, HTMLResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from llm_client import call_llm_structured
@@ -36,10 +35,9 @@ from wargame.gm import (
     compute_mechanical_base_rate,
     normalize_probabilities,
     select_relevant_domain_models,
-    validate_adjudication,
 )
 from wargame.models import ActionIntent, AdjudicationPacket
-from wargame.parser import build_parser_messages, validate_action_intent
+from wargame.parser import build_parser_messages
 from wargame.scenario import init_db, load_scenario
 
 GM_MODEL = "gemini/gemini-2.5-flash"
@@ -49,7 +47,7 @@ AI_MODEL = "gemini/gemini-2.5-flash"
 app = FastAPI(title="Geopolitical Wargame")
 
 # Game state (single session for now)
-game = {
+game: dict = {
     "conn": None,
     "spec": None,
     "trace_id": None,
@@ -57,9 +55,24 @@ game = {
     "action_histories": {},
     "human_actor": None,
     "ai_actors": [],
+    "mode": None,
 }
 
 WEB_DIR = Path(__file__).parent
+
+
+def _find_actor(spec, actor_id):
+    """Safely find an actor by ID. Returns None if not found."""
+    for a in spec.actors:
+        if a.id == actor_id:
+            return a
+    return None
+
+
+def _get_actor_name(spec, actor_id):
+    """Get actor display name."""
+    actor = _find_actor(spec, actor_id)
+    return actor.name if actor else actor_id
 
 
 class StartGameRequest(BaseModel):
@@ -87,7 +100,7 @@ async def start_game(req: StartGameRequest):
 
     actor_ids = [a.id for a in spec.actors]
     human_actor = req.play_as if req.mode != "ai_vs_ai" else None
-    ai_actors = [a for a in actor_ids if a != human_actor]
+    ai_actors = [a for a in actor_ids if a != human_actor] if human_actor else actor_ids
 
     game["conn"] = conn
     game["spec"] = spec
@@ -113,148 +126,95 @@ async def start_game(req: StartGameRequest):
 
 @app.get("/api/state")
 async def get_state():
-    """Get the current game state from the human player's perspective."""
+    """Get current game state."""
     if game["conn"] is None:
         raise HTTPException(400, "No game in progress")
 
     conn = game["conn"]
     human = game["human_actor"]
-
     estimates = get_actor_state_estimates(conn, human) if human else get_all_variables(conn)
     history = get_state_history(conn)
+    hist_json = {var_id: [{"turn": t, "value": v} for t, v in points] for var_id, points in history.items()}
 
-    # Format history for JSON
-    hist_json = {}
-    for var_id, points in history.items():
-        hist_json[var_id] = [{"turn": t, "value": v} for t, v in points]
-
-    return {
-        "estimates": estimates,
-        "history": hist_json,
-        "turn_log": game["turn_log"],
-    }
+    return {"estimates": estimates, "history": hist_json, "turn_log": game["turn_log"]}
 
 
-@app.post("/api/command")
-async def submit_command(req: CommandRequest):
-    """Submit a human player command and run a full turn."""
-    if game["conn"] is None:
-        raise HTTPException(400, "No game in progress")
+def _get_ai_action(conn, spec, actor_id, turn_number, trace_id):
+    """Generate an AI action for the given actor."""
+    actor = _find_actor(spec, actor_id)
+    if actor is None:
+        raise ValueError(f"Unknown actor: {actor_id}")
 
-    conn = game["conn"]
-    spec = game["spec"]
-    trace_id = game["trace_id"]
-    human_actor = game["human_actor"]
-    actor_ids = [a.id for a in spec.actors]
+    estimates = get_actor_state_estimates(conn, actor_id)
+    budget = spec.resource_budget[actor_id].domains
+
+    rows = conn.execute(
+        "SELECT observations FROM observation_log WHERE actor_id=? ORDER BY turn_number DESC LIMIT 3",
+        (actor_id,),
+    ).fetchall()
+    recent_obs = []
+    for r in rows:
+        recent_obs.extend(json.loads(r[0]))
+
+    messages = build_ai_opponent_messages(
+        actor=actor, state_estimates=estimates, observations=recent_obs,
+        action_history=game["action_histories"].get(actor_id, []),
+        turn_number=turn_number, resource_budget=budget,
+    )
+    intent, _ = call_llm_structured(
+        model=AI_MODEL, messages=messages, response_model=ActionIntent,
+        task="wargame_ai_opponent", trace_id=trace_id, max_budget=0.5,
+    )
+    intent.actor_id = actor_id
+    return intent
+
+
+def _adjudicate(conn, spec, action, turn, mechanical_deltas, trace_id):
+    """Adjudicate a single action through the GM. Returns (chosen_outcome, packet)."""
     valid_var_ids = {sv.id for sv in spec.state_variables}
     valid_actor_ids = {a.id for a in spec.actors}
 
-    # Run mechanical phases
-    mech = run_mechanical_phases(conn)
-    turn = mech.turn_number
+    state = get_all_variables(conn)
+    dms = select_relevant_domain_models(spec, action)
+    base_rates = compute_mechanical_base_rate(dms, action, state)
 
-    turn_result = {
-        "turn": turn,
-        "mechanical_deltas": {k: round(v, 4) for k, v in mech.all_mechanical_deltas.items() if abs(v) > 0.005},
-        "actions": [],
-        "observations": {},
-    }
-
-    # Parse human command
-    actor = next(a for a in spec.actors if a.id == human_actor)
-    instruments = [{"id": i.id, "midfield": i.midfield, "target_vars": i.target_vars} for i in actor.instruments]
-    budget = spec.resource_budget[human_actor].domains
-
-    messages = build_parser_messages(req.directive, actor, instruments, budget)
-    human_intent, _ = call_llm_structured(
-        model=PARSER_MODEL, messages=messages, response_model=ActionIntent,
-        task="wargame_parser", trace_id=trace_id, max_budget=0.5,
+    gm_messages = build_gm_messages(
+        action=action, state=state, domain_models=dms, base_rates=base_rates,
+        actor_ids=list(valid_actor_ids), variable_ids=list(valid_var_ids),
+        mechanical_deltas=mechanical_deltas,
     )
-    human_intent.actor_id = human_actor
-
-    # Collect all actions (human + AI)
-    turn_actions = [(human_actor, human_intent)]
-    game["action_histories"][human_actor].append(
-        f"Turn {turn}: [{human_intent.action_category}] {human_intent.intended_effect[:60]}"
+    packet, _ = call_llm_structured(
+        model=GM_MODEL, messages=gm_messages, response_model=AdjudicationPacket,
+        task="wargame_gm_adjudication", trace_id=trace_id, max_budget=1.0,
     )
 
-    # AI opponent actions
-    for ai_id in game["ai_actors"]:
-        ai_actor = next(a for a in spec.actors if a.id == ai_id)
-        ai_estimates = get_actor_state_estimates(conn, ai_id)
-        ai_budget = spec.resource_budget[ai_id].domains
+    prob_sum = sum(o.probability for o in packet.possible_outcomes)
+    if abs(prob_sum - 1.0) > 0.001:
+        packet = normalize_probabilities(packet)
 
-        rows = conn.execute(
-            "SELECT observations FROM observation_log WHERE actor_id=? ORDER BY turn_number DESC LIMIT 3",
-            (ai_id,),
-        ).fetchall()
-        recent_obs = []
-        for r in rows:
-            recent_obs.extend(json.loads(r[0]))
+    outcomes_dicts = [
+        {"outcome_id": o.outcome_id, "probability": o.probability,
+         "state_transitions": [{"var_id": t.var_id, "delta": t.delta} for t in o.state_transitions],
+         "narrative": o.narrative}
+        for o in packet.possible_outcomes
+    ]
+    chosen, rng_roll, seed = resolve_action(conn, outcomes_dicts, turn)
+    apply_action_transitions(conn, chosen["state_transitions"], turn)
 
-        ai_messages = build_ai_opponent_messages(
-            actor=ai_actor, state_estimates=ai_estimates, observations=recent_obs,
-            action_history=game["action_histories"][ai_id], turn_number=turn,
-            resource_budget=ai_budget,
-        )
-        ai_intent, _ = call_llm_structured(
-            model=AI_MODEL, messages=ai_messages, response_model=ActionIntent,
-            task="wargame_ai_opponent", trace_id=trace_id, max_budget=0.5,
-        )
-        ai_intent.actor_id = ai_id
-        turn_actions.append((ai_id, ai_intent))
-        game["action_histories"][ai_id].append(
-            f"Turn {turn}: [{ai_intent.action_category}] {ai_intent.intended_effect[:60]}"
-        )
+    action_id = generate_action_id()
+    conn.execute(
+        "INSERT INTO action_log (action_id, turn_number, actor_id, action_intent, adjudication_packet, realized_outcome_id, rng_roll) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (action_id, turn, action.actor_id, action.model_dump_json(), packet.model_dump_json(), chosen["outcome_id"], rng_roll),
+    )
 
-    # Adjudicate all actions
-    for actor_id, action in turn_actions:
-        state = get_all_variables(conn)
-        dms = select_relevant_domain_models(spec, action)
-        base_rates = compute_mechanical_base_rate(dms, action, state)
+    return chosen, packet
 
-        gm_messages = build_gm_messages(
-            action=action, state=state, domain_models=dms, base_rates=base_rates,
-            actor_ids=list(valid_actor_ids), variable_ids=list(valid_var_ids),
-            mechanical_deltas=mech.all_mechanical_deltas,
-        )
-        packet, _ = call_llm_structured(
-            model=GM_MODEL, messages=gm_messages, response_model=AdjudicationPacket,
-            task="wargame_gm_adjudication", trace_id=trace_id, max_budget=1.0,
-        )
 
-        prob_sum = sum(o.probability for o in packet.possible_outcomes)
-        if abs(prob_sum - 1.0) > 0.001:
-            packet = normalize_probabilities(packet)
+def _generate_observations(conn, spec, turn, turn_actions):
+    """Generate observation packets for all actors."""
+    actor_ids = [a.id for a in spec.actors]
+    observations = {}
 
-        outcomes_dicts = [
-            {"outcome_id": o.outcome_id, "probability": o.probability,
-             "state_transitions": [{"var_id": t.var_id, "delta": t.delta} for t in o.state_transitions],
-             "narrative": o.narrative}
-            for o in packet.possible_outcomes
-        ]
-        chosen, rng_roll, seed = resolve_action(conn, outcomes_dicts, turn)
-        apply_action_transitions(conn, chosen["state_transitions"], turn)
-
-        action_id = generate_action_id()
-        conn.execute(
-            "INSERT INTO action_log (action_id, turn_number, actor_id, action_intent, adjudication_packet, realized_outcome_id, rng_roll) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (action_id, turn, actor_id, action.model_dump_json(), packet.model_dump_json(), chosen["outcome_id"], rng_roll),
-        )
-
-        actor_name = next(a.name for a in spec.actors if a.id == actor_id)
-        is_human = (actor_id == human_actor)
-        turn_result["actions"].append({
-            "actor": actor_name,
-            "actor_id": actor_id,
-            "is_human": is_human,
-            "category": action.action_category,
-            "intent": action.intended_effect,
-            "outcome": chosen["outcome_id"],
-            "narrative": chosen["narrative"],
-        })
-
-    # Generate observation packets
     for actor_id in actor_ids:
         quality = compute_observation_quality(conn, actor_id, turn)
         narratives = []
@@ -273,20 +233,93 @@ async def submit_command(req: CommandRequest):
         if not narratives:
             narratives = ["No significant developments observed this turn."]
 
-        obs_packet = generate_observation_packet(conn, actor_id, turn, narratives, quality)
-        turn_result["observations"][actor_id] = narratives
+        generate_observation_packet(conn, actor_id, turn, narratives, quality)
+        observations[actor_id] = narratives
+
+    return observations
+
+
+@app.post("/api/command")
+async def submit_command(req: CommandRequest):
+    """Submit a command and run a full turn.
+
+    For human_vs_ai: parses the human command + generates AI action.
+    For ai_vs_ai: generates actions for both sides (directive is ignored).
+    """
+    if game["conn"] is None:
+        raise HTTPException(400, "No game in progress")
+
+    conn = game["conn"]
+    spec = game["spec"]
+    trace_id = game["trace_id"]
+    human_actor = game["human_actor"]
+    mode = game["mode"]
+
+    # Run mechanical phases
+    mech = run_mechanical_phases(conn)
+    turn = mech.turn_number
+
+    turn_result = {
+        "turn": turn,
+        "mechanical_deltas": {k: round(v, 4) for k, v in mech.all_mechanical_deltas.items() if abs(v) > 0.005},
+        "actions": [],
+        "observations": {},
+    }
+
+    turn_actions = []
+
+    # Human action (if applicable)
+    if human_actor and mode != "ai_vs_ai":
+        actor = _find_actor(spec, human_actor)
+        if actor is None:
+            raise HTTPException(400, f"Unknown actor: {human_actor}")
+
+        instruments = [{"id": i.id, "midfield": i.midfield, "target_vars": i.target_vars} for i in actor.instruments]
+        budget = spec.resource_budget[human_actor].domains
+
+        messages = build_parser_messages(req.directive, actor, instruments, budget)
+        human_intent, _ = call_llm_structured(
+            model=PARSER_MODEL, messages=messages, response_model=ActionIntent,
+            task="wargame_parser", trace_id=trace_id, max_budget=0.5,
+        )
+        human_intent.actor_id = human_actor
+        turn_actions.append((human_actor, human_intent))
+        game["action_histories"][human_actor].append(
+            f"Turn {turn}: [{human_intent.action_category}] {human_intent.intended_effect[:60]}"
+        )
+
+    # AI actions
+    for ai_id in game["ai_actors"]:
+        ai_intent = _get_ai_action(conn, spec, ai_id, turn, trace_id)
+        turn_actions.append((ai_id, ai_intent))
+        game["action_histories"][ai_id].append(
+            f"Turn {turn}: [{ai_intent.action_category}] {ai_intent.intended_effect[:60]}"
+        )
+
+    # Adjudicate all actions
+    for actor_id, action in turn_actions:
+        chosen, packet = _adjudicate(conn, spec, action, turn, mech.all_mechanical_deltas, trace_id)
+        turn_result["actions"].append({
+            "actor": _get_actor_name(spec, actor_id),
+            "actor_id": actor_id,
+            "is_human": actor_id == human_actor,
+            "category": action.action_category,
+            "intent": action.intended_effect,
+            "outcome": chosen["outcome_id"],
+            "narrative": chosen["narrative"],
+        })
+
+    # Generate observations
+    turn_result["observations"] = _generate_observations(conn, spec, turn, turn_actions)
 
     record_state_history(conn, turn)
     conn.commit()
-
     game["turn_log"].append(turn_result)
 
     # Return updated state
     estimates = get_actor_state_estimates(conn, human_actor) if human_actor else get_all_variables(conn)
     history = get_state_history(conn)
-    hist_json = {}
-    for var_id, points in history.items():
-        hist_json[var_id] = [{"turn": t, "value": v} for t, v in points]
+    hist_json = {var_id: [{"turn": t, "value": v} for t, v in points] for var_id, points in history.items()}
 
     return {
         "turn_result": turn_result,
