@@ -1,2 +1,16 @@
 LLM_CLIENT_TIMEOUT_POLICY=ban (first observed in call_llm_structured)
 TIMEOUT_DISABLED[call_llm_structured]: timeout=60s ignored (set LLM_CLIENT_TIMEOUT_POLICY=allow to re-enable).
+06:45:55 [ERROR] Supervisor already running (lock: /home/brian/.openclaw/run_task.supervisor.lock)
+06:46:30 [ERROR] Supervisor already running (lock: /home/brian/.openclaw/run_task.supervisor.lock)
+06:47:04 [ERROR] Supervisor already running (lock: /home/brian/.openclaw/run_task.supervisor.lock)
+TIMEOUT_DISABLED[call_llm_structured]: timeout=60s ignored (set LLM_CLIENT_TIMEOUT_POLICY=allow to re-enable).
+06:47:41 [ERROR] Supervisor already running (lock: /home/brian/.openclaw/run_task.supervisor.lock)
+06:48:15 [ERROR] Supervisor already running (lock: /home/brian/.openclaw/run_task.supervisor.lock)
+Loaded mission 'wargame-round3' for /home/brian/projects/wargame
+Model gaps: none
+Model gaps: none
+Model gaps: none
+Model gaps: none
+Model gaps: none
+Model gaps: none
+Mission 'wargame-round3' stopped with escalation; see /home/brian/projects/wargame/.openclaw/openclaw-missions/wargame-round3/tasks/mission.jsonl

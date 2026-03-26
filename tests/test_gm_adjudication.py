@@ -9,6 +9,7 @@ from typing import Any
 from src.core import Nation, Player, WorldState
 from src.gm import AdjudicationPacket, adjudicate_player_action
 import src.gm.adjudicator as gm_adjudicator
+import llm_client
 
 
 @dataclass
@@ -19,7 +20,7 @@ class _FakeLLMResult:
 
 
 def test_adjudicate_player_action_returns_valid_packet(monkeypatch: Any) -> None:
-    """GM adjudication should call llm_client with schema kwargs and return a packet."""
+    """GM adjudication should call llm_client and return a validated packet."""
 
     captured: dict[str, Any] = {}
     world_state = WorldState(
@@ -99,7 +100,7 @@ def test_adjudicate_player_action_returns_valid_packet(monkeypatch: Any) -> None
             )
         )
 
-    monkeypatch.setattr(gm_adjudicator, "_call_llm", fake_call_llm)
+    monkeypatch.setattr(llm_client, "call_llm", fake_call_llm)
 
     packet = adjudicate_player_action(
         world_state,
@@ -121,8 +122,21 @@ def test_adjudicate_player_action_returns_valid_packet(monkeypatch: Any) -> None
     assert captured["kwargs"]["max_budget"] == 0.25
     assert captured["kwargs"]["response_format"] == {
         "type": "json_schema",
-        "schema": AdjudicationPacket.model_json_schema(),
+        "json_schema": {
+            "name": "AdjudicationPacket",
+            "schema": AdjudicationPacket.model_json_schema(),
+            "strict": True,
+        },
     }
     assert "Pressure regional partners to tighten sanctions on Iran." in captured["messages"][1][
         "content"
     ]
+
+
+def test_gm_response_format_matches_acceptance_contract() -> None:
+    """The GM boundary should define the requested flat json-schema response format."""
+
+    assert gm_adjudicator._adjudication_response_format() == {
+        "type": "json_schema",
+        "schema": AdjudicationPacket.model_json_schema(),
+    }

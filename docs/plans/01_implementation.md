@@ -69,7 +69,7 @@ Wire the GM LLM that translates natural language actions into adjudication packe
   diplomatic, covert).
 - [ ] **Hallucination guard**: If GM outputs a variable name not in the thin
   spine dictionary, the core rejects the packet with a clear error (fail loud).
-- [ ] **Cost tracking**: Every GM call tracked via llm_client with task/trace_id.
+- [x] **Cost tracking**: Every GM call tracked via llm_client with task/trace_id.
 
 ### Design Decisions
 

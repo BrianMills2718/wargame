@@ -32,18 +32,25 @@ def adjudicate_player_action(
         player_action=player_action,
         recent_turn_summary=recent_turn_summary,
     )
+    response_format = _adjudication_response_format()
     result = _call_llm(
         model,
         messages,
-        response_format={
-            "type": "json_schema",
-            "schema": AdjudicationPacket.model_json_schema(),
-        },
+        response_format=response_format,
         task=task,
         trace_id=trace_id,
         max_budget=max_budget,
     )
     return _parse_adjudication_packet(result.content)
+
+
+def _adjudication_response_format() -> dict[str, Any]:
+    """Expose the GM's structured-output contract as a plain JSON-schema payload."""
+
+    return {
+        "type": "json_schema",
+        "schema": AdjudicationPacket.model_json_schema(),
+    }
 
 
 def _render_game_master_prompt(
@@ -110,13 +117,41 @@ def _summarize_world_state(world_state: WorldState) -> str:
 def _call_llm(
     model: str,
     messages: list[dict[str, str]],
+    *,
+    response_format: dict[str, Any],
     **kwargs: Any,
 ) -> Any:
-    """Import and invoke the shared llm_client at the point of use."""
+    """Import and invoke the shared llm_client with provider-compatible schema shape."""
 
     from llm_client import call_llm
 
-    return call_llm(model, messages, **kwargs)
+    return call_llm(
+        model,
+        messages,
+        response_format=_llm_client_response_format(response_format),
+        **kwargs,
+    )
+
+
+def _llm_client_response_format(response_format: dict[str, Any]) -> dict[str, Any]:
+    """Translate the GM's flat schema contract into llm_client's expected payload."""
+
+    if response_format.get("type") != "json_schema":
+        return response_format
+
+    schema = response_format.get("schema")
+    if not isinstance(schema, dict):
+        msg = "GM response_format must include a dict-valued 'schema' entry."
+        raise ValueError(msg)
+
+    return {
+        "type": "json_schema",
+        "json_schema": {
+            "name": AdjudicationPacket.__name__,
+            "schema": schema,
+            "strict": True,
+        },
+    }
 
 
 def _parse_adjudication_packet(content: str) -> AdjudicationPacket:
