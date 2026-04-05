@@ -1,4 +1,34 @@
-"""Pydantic models for canonical state and adjudication packets."""
+"""Pydantic models for canonical world state and adjudication packets.
+
+This module defines the complete data schema for the wargame's deterministic core.
+All state mutations flow through these models, ensuring strict validation at every
+boundary.
+
+**Entity hierarchy** (thin-spine state carriers):
+
+- :class:`StateEntity` — base class with ``attributes`` dict (0-100 integers)
+- :class:`Nation` — a sovereign nation controlled by a player
+- :class:`Actor` — a non-sovereign actor aligned with a nation (e.g. military,
+  intelligence, diplomatic corps)
+- :class:`Player` — metadata for observation filtering (role + position)
+- :class:`MapFeature` — static scenario geography retained for proximity rules
+
+**World state**:
+
+- :class:`WorldState` — canonical mutable state mutated by the turn engine, with
+  referential-integrity validators that enforce key/ID consistency and cross-entity
+  references
+
+**Adjudication pipeline** (GM → Core):
+
+- :class:`AttributeChange` — a single signed delta to one entity attribute
+- :class:`AdjudicationOutcome` — a weighted branch the RNG can select
+- :class:`AdjudicationPacket` — the structured instruction set emitted by the GM
+  boundary, containing guaranteed changes and probabilistic outcomes
+- :class:`AppliedChange` — the concrete mutation record after processing
+- :class:`TurnResult` — full record of how a packet changed the world state,
+  including the RNG roll and selected outcome
+"""
 
 from __future__ import annotations
 

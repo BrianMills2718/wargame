@@ -1,4 +1,24 @@
-"""Package entry point for the deterministic core smoke test."""
+"""CLI smoke test for the deterministic core engine.
+
+This module serves as the ``python -m src.core`` entry point, exercising the full
+Phase 1 pipeline without any LLM calls:
+
+1. Loads a scenario from disk via :func:`~src.core.scenario_loader.load_scenario`.
+2. Builds a hardcoded :class:`~src.core.models.AdjudicationPacket` that modifies
+   US military readiness (+4) and Iran regime stability (−2).
+3. Processes one turn through :class:`~src.core.engine.TurnEngine` with a seeded
+   RNG for reproducibility.
+4. Prints the initial world state, the turn result, per-player fog-of-war filtered
+   observations, and the updated world state.
+
+Usage::
+
+    python -m src.core                        # default scenario
+    python -m src.core --scenario path.yaml   # custom scenario
+
+The module also exposes :func:`run_cli` and :func:`main` for programmatic and
+test-harness invocation respectively.
+"""
 
 from __future__ import annotations
 

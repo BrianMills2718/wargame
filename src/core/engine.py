@@ -1,4 +1,30 @@
-"""Turn engine and observation filtering for the canonical world state."""
+"""Turn engine and fog-of-war observation filtering for the canonical world state.
+
+This module contains the deterministic core that processes adjudication packets
+and filters the resulting state changes into per-player observations.
+
+**Turn processing** (:class:`TurnEngine`):
+
+1. Guaranteed changes from the packet are applied unconditionally.
+2. If the packet contains weighted outcomes, the engine rolls RNG and selects one
+   probabilistically; the selected outcome's changes are then applied.
+3. All attribute mutations are validated to stay within the canonical 0-100 range
+   (fail loud — invalid updates raise immediately).
+4. The turn number increments and the result is cached for observation filtering.
+
+**Observation filtering** (:func:`filter_observations`):
+
+Visibility is determined by a combination of player role, alliance status, and
+map proximity:
+
+- **Leader**: sees changes to controlled entities, allied nations, and locally
+  adjacent entities.
+- **Operative**: sees changes to controlled entities and locally adjacent entities.
+- **Observer**: sees only locally adjacent changes.
+
+Proximity is computed from ``WorldState.map_adjacency``: an entity is "local" if
+its position is co-located with or adjacent to the player's position.
+"""
 
 from __future__ import annotations
 
@@ -41,7 +67,24 @@ class TurnEngine:
         return self._world_state
 
     def process_packet(self, packet: AdjudicationPacket) -> TurnResult:
-        """Mutate canonical state for one adjudicated action and return the result."""
+        """Mutate canonical state for one adjudicated action and return the result.
+
+        Applies guaranteed changes first, then (if outcomes exist) rolls RNG to
+        select a probabilistic outcome and applies its changes.  Increments the
+        turn number and caches the result on ``WorldState.latest_turn_result``
+        so that :meth:`filter_observations` can access it.
+
+        Args:
+            packet: Validated adjudication packet from the GM boundary.
+
+        Returns:
+            A :class:`TurnResult` recording the RNG roll, selected outcome,
+            and all concrete attribute mutations.
+
+        Raises:
+            ValueError: If any attribute mutation would leave the 0-100 range.
+            KeyError: If a packet references an unknown nation or actor.
+        """
 
         applied_changes = [self._apply_change(change) for change in packet.guaranteed_changes]
         selected_outcome: str | None = None
@@ -65,7 +108,20 @@ class TurnEngine:
         return result
 
     def filter_observations(self, player_id: str) -> list[AppliedChange]:
-        """Return only the latest observations visible to the requested player."""
+        """Return only the latest observations visible to the requested player.
+
+        Delegates to the module-level :func:`filter_observations` function,
+        passing the engine's current world state.
+
+        Args:
+            player_id: Identifier of the player whose fog-of-war view is needed.
+
+        Returns:
+            A list of :class:`AppliedChange` instances that the player can see.
+
+        Raises:
+            KeyError: If *player_id* does not exist in the world state.
+        """
 
         return filter_observations(player_id=player_id, game_state=self._world_state)
 
@@ -127,7 +183,22 @@ class TurnEngine:
 
 
 def filter_observations(player_id: str, game_state: WorldState) -> list[AppliedChange]:
-    """Filter the latest applied changes down to what the player can currently see."""
+    """Filter the latest applied changes down to what the player can currently see.
+
+    Iterates over every :class:`AppliedChange` in
+    ``game_state.latest_turn_result`` and keeps only those that pass the
+    role/alliance/proximity visibility rules defined in :func:`_change_is_visible`.
+
+    Args:
+        player_id: Identifier of the observing player.
+        game_state: The current canonical world state (must contain the player).
+
+    Returns:
+        Subset of applied changes visible to the player under fog-of-war rules.
+
+    Raises:
+        KeyError: If *player_id* is not present in ``game_state.players``.
+    """
 
     try:
         player = game_state.players[player_id]
@@ -154,7 +225,23 @@ def _change_is_visible(
     allied_nations: set[str],
     game_state: WorldState,
 ) -> bool:
-    """Apply role, alliance, and proximity rules to one observed change."""
+    """Apply role, alliance, and proximity rules to one observed change.
+
+    Visibility matrix by role:
+
+    - **leader**: ``is_controlled OR is_allied OR is_local``
+    - **operative**: ``is_controlled OR is_local``
+    - **observer**: ``is_local`` only
+
+    Args:
+        change: A single applied attribute mutation to evaluate.
+        player: The observing player's metadata (role, nation, position).
+        allied_nations: Pre-computed set of nation IDs allied with the player.
+        game_state: Full world state for entity and adjacency lookups.
+
+    Returns:
+        ``True`` if the change should be included in the player's observation.
+    """
 
     target = _resolve_observation_target(change.target_type, change.target_id, game_state)
     target_nation_id = target.entity_id if isinstance(target, Nation) else target.nation_id
@@ -178,7 +265,16 @@ def _positions_are_visible(
     target_position: str | None,
     map_adjacency: dict[str, list[str]],
 ) -> bool:
-    """Return whether the target position is co-located with or adjacent to the observer."""
+    """Return whether the target position is co-located with or adjacent to the observer.
+
+    Returns ``False`` immediately if either position is ``None`` (entities
+    without a map presence are invisible to proximity checks).
+
+    Args:
+        observer_position: Map node of the observing player (may be ``None``).
+        target_position: Map node of the target entity (may be ``None``).
+        map_adjacency: Adjacency list mapping each node to its neighbours.
+    """
 
     if observer_position is None or target_position is None:
         return False
@@ -190,7 +286,19 @@ def _positions_are_visible(
 def _resolve_observation_target(
     target_type: str, target_id: str, game_state: WorldState
 ) -> Nation | Actor:
-    """Resolve a change target for visibility checks without mutating the state."""
+    """Resolve a change target for visibility checks without mutating the state.
+
+    Args:
+        target_type: Either ``"nation"`` or ``"actor"``.
+        target_id: Identifier of the target entity.
+        game_state: World state containing the entity registries.
+
+    Returns:
+        The resolved :class:`Nation` or :class:`Actor` instance.
+
+    Raises:
+        KeyError: If the target is not found in the appropriate registry.
+    """
 
     if target_type == "nation":
         try:

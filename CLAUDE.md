@@ -138,6 +138,20 @@ Remaining Phase 1 per `docs/plans/01_implementation.md`:
 - State model acceptance item
 - Turn engine acceptance item
 
+## Phase 1 Component Documentation Status
+
+All core modules have comprehensive docstrings covering module purpose,
+class responsibilities, method contracts (args/returns/raises), and
+architectural context.
+
+| Module | Documentation | Notes |
+|--------|--------------|-------|
+| `src/core/models.py` | ✅ Complete | Module docstring with full entity/adjudication hierarchy; class, field, and validator docstrings |
+| `src/core/engine.py` | ✅ Complete | Module docstring with turn-processing and fog-of-war visibility rules; all functions and methods documented with args/returns/raises |
+| `src/core/scenario_loader.py` | ✅ Complete | Module docstring with format descriptions and normalisation pipeline; all functions documented with args/returns/raises |
+| `src/core/__main__.py` | ✅ Complete | Module docstring explaining CLI smoke test purpose and usage; all helper functions documented |
+| `tests/` | ✅ Adequate | 21 tests across 7 files covering engine, observation, scenario loading, GM schema, and CLI smoke execution |
+
 ## References
 
 - `docs/ONE_PAGER.md` — architectural brief and risk matrix
