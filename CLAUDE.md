@@ -156,3 +156,7 @@ architectural context.
 
 - `docs/ONE_PAGER.md` — architectural brief and risk matrix
 - `docs/plans/01_implementation.md` — implementation plan with phases and acceptance criteria
+
+## Workflow
+
+Use `docs/plans/` for implementation plans. Run `make test` before committing.
