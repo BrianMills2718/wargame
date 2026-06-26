@@ -1,0 +1,15 @@
+---
+doc-role: wiki-manifest
+freshness: 2026-06-25
+---
+
+# Wiki Manifest — Wargame
+
+id: wargame
+portfolio_tier: personal
+description: >
+  Wargame
+
+sources:
+  - path: ../CLAUDE.md
+    role: instructions
