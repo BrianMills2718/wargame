@@ -1,0 +1,16 @@
+schema_version: 1.0.0
+project_id: project-wargame
+display_name: Wargame
+context_epoch: 1
+revision_policy:
+  development: moving_checkout
+  evidence: exact_revision
+repositories:
+  - repository_id: wargame
+    role: primary
+    workspace: default
+    authority_entrypoints:
+      - CLAUDE.md
+      - ROADMAP.md
+      - claude_code_planning/PLAN.md
+    contract_seams: []
