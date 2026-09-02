@@ -39,6 +39,7 @@ from wargame.fog import (
 )
 from wargame.gm import (
     build_gm_messages,
+    clamp_to_base_rates,
     compute_mechanical_base_rate,
     normalize_probabilities,
     select_relevant_domain_models,
@@ -218,6 +219,14 @@ def adjudicate_action(
     prob_sum = sum(o.probability for o in packet.possible_outcomes)
     if abs(prob_sum - 1.0) > 0.001:
         packet = normalize_probabilities(packet)
+
+    # Anti-god-moding (ADR-001): the GM may move each outcome at most ±0.15
+    # from the state-conditioned base rate. validate_adjudication could always
+    # detect a violation, but it was never called, so nothing enforced it.
+    issues = validate_adjudication(packet, valid_var_ids, valid_actor_ids, base_rates)
+    if issues:
+        print(f"  ⚠ GM adjudication outside its band, clamping: {'; '.join(issues)}")
+        packet = clamp_to_base_rates(packet, base_rates)
 
     # Resolve
     outcomes_dicts = [

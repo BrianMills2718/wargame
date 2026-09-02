@@ -32,9 +32,11 @@ from wargame.fog import (
 )
 from wargame.gm import (
     build_gm_messages,
+    clamp_to_base_rates,
     compute_mechanical_base_rate,
     normalize_probabilities,
     select_relevant_domain_models,
+    validate_adjudication,
 )
 from wargame.models import ActionIntent, AdjudicationPacket
 from wargame.parser import build_parser_messages
@@ -207,6 +209,12 @@ def _adjudicate(conn, spec, action, turn, mechanical_deltas, trace_id):
     prob_sum = sum(o.probability for o in packet.possible_outcomes)
     if abs(prob_sum - 1.0) > 0.001:
         packet = normalize_probabilities(packet)
+
+    # Anti-god-moding (ADR-001). See the matching block in cli.py.
+    issues = validate_adjudication(packet, valid_var_ids, valid_actor_ids, base_rates)
+    if issues:
+        print(f"GM adjudication outside its band, clamping: {'; '.join(issues)}")
+        packet = clamp_to_base_rates(packet, base_rates)
 
     outcomes_dicts = [
         {"outcome_id": o.outcome_id, "probability": o.probability,

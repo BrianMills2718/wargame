@@ -59,41 +59,80 @@ actors:
       - {id: inst_iran_information, midfield: [information], target_vars: [sv_internal_legitimacy]}
 
 domain_models:
+  # categories: which action categories this model governs. Replaces a
+  #   category-to-model map that was hardcoded in the engine.
+  # state_conditions: how the situation moves the odds. Each condition that
+  #   holds adds its shift to the model's success pressure; the total is capped
+  #   at +/-0.30 and moves probability mass along the outcome ladder.
+
   - id: dm_sanctions_pressure
     subtype: transition
     description: "Escalating sanctions creates internal economic stress and regime pressure, but effect is reduced by evasion channels and depends on elite cohesion."
     key_variables: [sv_sanctions_intensity, sv_internal_legitimacy, sv_elite_cohesion]
+    categories: [economic]
     base_rates: {critical_success: 0.05, success: 0.20, partial: 0.40, failure: 0.25, critical_failure: 0.10}
+    state_conditions:
+      - {variable: sv_elite_cohesion, above: 0.65, shift: -0.15, note: "a cohesive elite absorbs economic pain without splitting"}
+      - {variable: sv_internal_legitimacy, below: 0.40, shift: 0.15, note: "a regime already short of legitimacy is more coercible"}
+      - {variable: sv_sanctions_intensity, above: 0.85, shift: -0.10, note: "diminishing returns; little left to squeeze"}
 
   - id: dm_deterrence_dynamics
     subtype: transition
     description: "Credible military threat deters escalation, but overdeployment can provoke rather than deter. Effectiveness depends on force posture relative to adversary perception."
     key_variables: [sv_military_tension, sv_deterrence_balance, sv_force_posture, sv_perceived_iran_threat]
+    categories: [kinetic]
     base_rates: {critical_success: 0.05, success: 0.35, partial: 0.30, failure: 0.20, critical_failure: 0.10}
+    state_conditions:
+      - {variable: sv_military_tension, above: 0.70, shift: -0.15, note: "in a hot crisis a deterrent signal reads as preparation to strike"}
+      - {variable: sv_force_posture, above: 0.70, shift: 0.10, note: "posture already in place makes the threat credible"}
+      - {variable: sv_deterrence_balance, below: -0.30, shift: -0.10, note: "deterring from a losing position rarely holds"}
 
   - id: dm_proxy_deterrence
     subtype: transition
     description: "Proxy network depth raises intervention costs for adversaries, providing asymmetric deterrence. But proxy activity also raises escalation risk."
     key_variables: [sv_proxy_network_presence, sv_proxy_activity, sv_deterrence_balance, sv_regional_depth]
+    categories: [kinetic, covert]
     base_rates: {critical_success: 0.05, success: 0.30, partial: 0.30, failure: 0.25, critical_failure: 0.10}
+    state_conditions:
+      - {variable: sv_proxy_network_presence, above: 0.70, shift: 0.15, note: "a deep network raises the cost of intervening against it"}
+      - {variable: sv_proxy_network_presence, below: 0.35, shift: -0.15, note: "a thin network gives little to work with"}
+      - {variable: sv_military_tension, above: 0.70, shift: -0.10, note: "proxies escape control once the crisis is hot"}
 
   - id: dm_nuclear_latency
     subtype: transition
     description: "Nuclear hedging provides insurance against regime change but provokes adversary pressure. Breakout timeline is a function of technical capacity and international monitoring."
     key_variables: [sv_nuclear_latency, sv_regime_survival_risk, sv_military_tension]
-    base_rates: {}
+    categories: [kinetic]
+    # Deliberately the hardest action in the scenario. This model previously
+    # declared no base rates at all, so a breakout attempt silently inherited
+    # dm_deterrence_dynamics and its 35% success.
+    base_rates: {critical_success: 0.03, success: 0.12, partial: 0.30, failure: 0.35, critical_failure: 0.20}
+    state_conditions:
+      - {variable: sv_nuclear_latency, below: 4.0, shift: 0.20, note: "already close to breakout; far less left to accomplish"}
+      - {variable: sv_perceived_iran_threat, above: 0.75, shift: -0.15, note: "an alarmed adversary is watching the program closely"}
+      - {variable: sv_diplomatic_engagement, above: 0.50, shift: -0.10, note: "an active negotiating track constrains a visible dash"}
 
   - id: dm_covert_ops
     subtype: transition
     description: "Covert operations are high-friction, low-probability. Success depends on intelligence penetration, target hardening, and operational security. Attribution risk is always present."
     key_variables: []
+    categories: [covert]
     base_rates: {critical_success: 0.10, success: 0.20, partial: 0.30, failure: 0.25, critical_failure: 0.15}
+    state_conditions:
+      - {variable: sv_perceived_iran_threat, above: 0.75, shift: -0.15, note: "an alerted target has hardened and is hunting for the operation"}
+      - {variable: sv_military_tension, above: 0.70, shift: -0.10, note: "heightened alert across the board shrinks operational space"}
+      - {variable: sv_internal_legitimacy, below: 0.40, shift: 0.10, note: "a fragile regime is easier to penetrate and recruit inside"}
 
   - id: dm_diplomatic_engagement
     subtype: transition
     description: "Diplomatic initiatives require sustained engagement and credible offers. Effectiveness depends on alliance credibility, willingness to make concessions, and domestic political space."
     key_variables: [sv_diplomatic_engagement, sv_alliance_credibility]
+    categories: [diplomatic]
     base_rates: {critical_success: 0.05, success: 0.25, partial: 0.40, failure: 0.25, critical_failure: 0.05}
+    state_conditions:
+      - {variable: sv_diplomatic_engagement, above: 0.50, shift: 0.15, note: "channels are already open; momentum carries"}
+      - {variable: sv_military_tension, above: 0.70, shift: -0.15, note: "very hard to negotiate while the crisis is hot"}
+      - {variable: sv_perceived_us_coercion, above: 0.80, shift: -0.10, note: "Iran reads the outreach as another form of pressure"}
 
 state_variables:
   # Value-adjacent
