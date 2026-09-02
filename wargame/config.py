@@ -23,6 +23,7 @@ from typing import Any
 GM_MODEL = "openrouter/openai/gpt-5.6-luna"
 PARSER_MODEL = "openrouter/openai/gpt-5.6-luna"
 AI_MODEL = "openrouter/openai/gpt-5.6-luna"
+ADVISOR_MODEL = "openrouter/openai/gpt-5.6-luna"
 
 # Secondary route. Must support the same reasoning effort as the primary.
 FALLBACK_MODELS = ["openrouter/openai/gpt-5.6-sol"]
@@ -46,6 +47,7 @@ LLM_CALL_DEFAULTS: dict[str, Any] = {
 GM_MAX_BUDGET = 1.0
 PARSER_MAX_BUDGET = 0.5
 AI_MAX_BUDGET = 0.5
+ADVISOR_MAX_BUDGET = 0.5
 
 # Where finished/in-progress games are written. A file-backed database means a
 # crashed run leaves a full forensic record instead of vanishing.

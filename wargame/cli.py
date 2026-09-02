@@ -45,7 +45,10 @@ from wargame.gm import (
     select_relevant_domain_models,
     validate_adjudication,
 )
+from wargame.advisor import build_advisor_messages
 from wargame.config import (
+    ADVISOR_MAX_BUDGET,
+    ADVISOR_MODEL,
     AI_MAX_BUDGET,
     AI_MODEL,
     DEFAULT_DB_DIR,
@@ -55,7 +58,7 @@ from wargame.config import (
     PARSER_MAX_BUDGET,
     PARSER_MODEL,
 )
-from wargame.models import ActionIntent, AdjudicationPacket, ScenarioSpec
+from wargame.models import ActionIntent, AdjudicationPacket, AdvisorAnswer, ScenarioSpec
 from wargame.parser import build_parser_messages, validate_action_intent
 from wargame.scenario import init_db, load_scenario
 
@@ -77,11 +80,78 @@ def print_state_summary(estimates: dict[str, float], label: str) -> None:
         print(f"    {var_id.replace('sv_', ''):<30} {estimates[var_id]:>6.2f} [{bar}]")
 
 
+def ask_advisor(
+    conn: sqlite3.Connection,
+    spec: ScenarioSpec,
+    actor_id: str,
+    question: str,
+    turn_number: int,
+    action_history: list[str],
+    total_turns: int,
+    trace_id: str,
+) -> None:
+    """Put a player question to their analyst and print the answer.
+
+    Built from the player's own state estimates, never canonical state, so the
+    advisor cannot leak anything the player has not observed.
+    """
+    actor = next(a for a in spec.actors if a.id == actor_id)
+    rows = conn.execute(
+        "SELECT observations FROM observation_log WHERE actor_id=? ORDER BY turn_number DESC LIMIT 3",
+        (actor_id,),
+    ).fetchall()
+    recent_obs: list[str] = []
+    for r in rows:
+        recent_obs.extend(json.loads(r[0]))
+
+    messages = build_advisor_messages(
+        actor=actor,
+        domain_models=spec.domain_models,
+        estimates=get_actor_state_estimates(conn, actor_id),
+        budget=spec.resource_budget[actor_id].domains,
+        recent_observations=recent_obs,
+        action_history=action_history,
+        turn_number=turn_number,
+        total_turns=total_turns,
+        question=question,
+    )
+
+    print("  Consulting your analyst...")
+    try:
+        reply, _ = call_llm_structured(
+            model=ADVISOR_MODEL,
+            messages=messages,
+            response_model=AdvisorAnswer,
+            task="wargame_advisor",
+            trace_id=trace_id,
+            max_budget=ADVISOR_MAX_BUDGET,
+            **LLM_CALL_DEFAULTS,
+        )
+    except Exception as e:
+        print(f"  ⚠ Your analyst is unreachable: {e}")
+        return
+
+    print(f"\n  \u2500\u2500 ANALYST \u2500\u2500")
+    print(f"  {reply.answer}")
+    if reply.options:
+        print("\n  Options:")
+        for i, opt in enumerate(reply.options, 1):
+            print(f"    {i}. {opt.action}")
+            print(f"       uses {opt.instrument} — {opt.likely_effect}")
+            print(f"       risk: {opt.risk}")
+    if reply.uncertainty:
+        print(f"\n  What I can't see: {reply.uncertainty}")
+    print()
+
+
 def get_human_action(
     conn: sqlite3.Connection,
     spec: ScenarioSpec,
     actor_id: str,
     trace_id: str,
+    turn_number: int = 1,
+    action_history: list[str] | None = None,
+    total_turns: int = 20,
 ) -> ActionIntent:
     """Get and parse a human player's natural language command."""
     actor = next(a for a in spec.actors if a.id == actor_id)
@@ -90,6 +160,7 @@ def get_human_action(
 
     print(f"\n  Your instruments: {', '.join(i.id.replace('inst_', '') for i in actor.instruments)}")
     print(f"  Budget: {budget}")
+    print("  Ask your analyst anything by starting with '?' — e.g. ? what happens if I sanction their bank")
 
     while True:
         directive = input(f"\n  [{actor.name}] Your orders: ").strip()
@@ -99,6 +170,17 @@ def get_human_action(
         if directive.lower() in ("quit", "exit", "q"):
             print("\n  Game ended by player.")
             sys.exit(0)
+
+        if directive.startswith("?") or directive.lower().startswith("ask "):
+            question = directive[1:].strip() if directive.startswith("?") else directive[4:].strip()
+            if question:
+                ask_advisor(
+                    conn, spec, actor_id, question, turn_number,
+                    action_history or [], total_turns, trace_id,
+                )
+            else:
+                print("  (Ask a question after the '?', e.g. ? should I escalate)")
+            continue
 
         print("  Parsing your command...")
         messages = build_parser_messages(directive, actor, instruments, budget)
@@ -310,7 +392,11 @@ def run_game(
 
             if is_human:
                 print_state_summary(estimates, f"Your intelligence picture ({actor_name})")
-                action = get_human_action(conn, spec, actor_id, trace_id)
+                action = get_human_action(
+                    conn, spec, actor_id, trace_id,
+                    turn_number=turn, action_history=action_histories[actor_id],
+                    total_turns=total_turns,
+                )
             elif actor_id in ai_actors:
                 if mode != "ai_vs_ai":
                     print(f"\n  {actor_name} is deciding...")
@@ -320,7 +406,11 @@ def run_game(
             else:
                 # Human vs human: other human's turn
                 print_state_summary(estimates, f"Intelligence picture ({actor_name})")
-                action = get_human_action(conn, spec, actor_id, trace_id)
+                action = get_human_action(
+                    conn, spec, actor_id, trace_id,
+                    turn_number=turn, action_history=action_histories[actor_id],
+                    total_turns=total_turns,
+                )
 
             turn_actions.append((actor_id, action))
             action_histories[actor_id].append(
