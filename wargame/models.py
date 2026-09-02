@@ -54,13 +54,44 @@ class ActorSpec(BaseModel):
     instruments: list[Instrument]
 
 
+class StateCondition(BaseModel):
+    """One state-dependent adjustment to a domain model's base rates.
+
+    When the named variable crosses the threshold, `shift` is added to this
+    model's total success pressure. Positive shifts move probability mass
+    toward success, negative toward failure. This is what makes the odds depend
+    on the situation rather than being a constant table per domain.
+    """
+    variable: str
+    above: float | None = None
+    below: float | None = None
+    shift: float = Field(ge=-0.3, le=0.3, description="Success pressure added when this condition holds.")
+    note: str = Field("", description="Why this condition moves the odds. Shown in engine explanations.")
+
+    @model_validator(mode="after")
+    def check_exactly_one_threshold(self) -> "StateCondition":
+        if (self.above is None) == (self.below is None):
+            raise ValueError(
+                f"state condition on {self.variable!r} needs exactly one of "
+                f"'above' or 'below' (got above={self.above}, below={self.below})"
+            )
+        return self
+
+
 class DomainModel(BaseModel):
     """How a geopolitical domain works — used by GM for adjudication."""
     id: str
     subtype: str
     description: str
     key_variables: list[str] = Field(default_factory=list)
+    categories: list[str] = Field(
+        default_factory=list,
+        description="Action categories this model governs. Replaces the engine's "
+                    "old hardcoded category-to-model map, which named this "
+                    "scenario's ids inside the general engine.",
+    )
     base_rates: dict[str, float] = Field(default_factory=dict)
+    state_conditions: list[StateCondition] = Field(default_factory=list)
 
 
 class StateVariableSpec(BaseModel):

@@ -21,6 +21,13 @@ from wargame.models import (
 )
 
 
+# Outcome ladder, worst to best. State pressure moves probability mass along it.
+OUTCOME_LADDER = ["critical_failure", "failure", "partial", "success", "critical_success"]
+WORST_TWO = ("critical_failure", "failure")
+BEST_TWO = ("success", "critical_success")
+MAX_TOTAL_SHIFT = 0.30
+
+
 def _format_mechanical_deltas(deltas: dict[str, float] | None) -> str:
     """Format mechanical deltas for inclusion in GM prompt."""
     if not deltas:
@@ -31,42 +38,109 @@ def _format_mechanical_deltas(deltas: dict[str, float] | None) -> str:
     return "\n".join(lines) + "\nThese have already been applied. The Current State above reflects them."
 
 
+def score_domain_model(dm: DomainModel, action: ActionIntent, action_vars: set[str]) -> float:
+    """Relevance of one domain model to one action. Higher is more relevant.
+
+    Variable overlap is the strong signal (the model actually describes the
+    machinery this action touches); a declared category match is a weaker one.
+    """
+    score = 2.0 * len(action_vars & set(dm.key_variables))
+    if action.action_category in dm.categories:
+        score += 1.0
+    return score
+
+
 def select_relevant_domain_models(
     spec: ScenarioSpec,
     action: ActionIntent,
 ) -> list[DomainModel]:
-    """Select domain models relevant to this action based on instrument target_vars overlap."""
-    # Collect all target_vars for the instruments used in this action
+    """Domain models relevant to this action, most relevant first.
+
+    Selection used to be first-match in YAML order, which meant a nuclear
+    breakout attempt, a proxy attack and a missile exercise all drew
+    dm_deterrence_dynamics simply because it appeared earlier in the file.
+    Ties keep declaration order, so selection stays deterministic.
+    """
     action_vars: set[str] = set()
     for actor in spec.actors:
         for inst in actor.instruments:
             if inst.id in action.instruments_used:
                 action_vars.update(inst.target_vars)
 
-    # Also match by action category
-    category_model_map = {
-        "covert": "dm_covert_ops",
-        "diplomatic": "dm_diplomatic_engagement",
-        "economic": "dm_sanctions_pressure",
-        "kinetic": "dm_deterrence_dynamics",
-    }
+    scored = [
+        (score_domain_model(dm, action, action_vars), index, dm)
+        for index, dm in enumerate(spec.domain_models)
+    ]
+    relevant = [entry for entry in scored if entry[0] > 0]
+    relevant.sort(key=lambda entry: (-entry[0], entry[1]))
+    return [dm for _, _, dm in relevant]
 
-    relevant = []
-    for dm in spec.domain_models:
-        # Match by variable overlap
-        if action_vars & set(dm.key_variables):
-            relevant.append(dm)
-        # Match by category
-        elif dm.id == category_model_map.get(action.action_category):
-            relevant.append(dm)
 
-    # Always include covert ops model for covert actions
-    if action.action_category == "covert":
-        covert = next((dm for dm in spec.domain_models if dm.id == "dm_covert_ops"), None)
-        if covert and covert not in relevant:
-            relevant.append(covert)
+def compute_state_shift(dm: DomainModel, state: dict[str, float]) -> tuple[float, list[str]]:
+    """Total success pressure this domain model's state conditions produce.
 
-    return relevant
+    Returns (shift, reasons). The shift is clamped to +/-MAX_TOTAL_SHIFT so no
+    combination of conditions can flip an action from hard to certain.
+    """
+    total = 0.0
+    reasons: list[str] = []
+    for cond in dm.state_conditions:
+        value = state.get(cond.variable)
+        if value is None:
+            continue
+        fired = (
+            (cond.above is not None and value > cond.above)
+            or (cond.below is not None and value < cond.below)
+        )
+        if fired:
+            total += cond.shift
+            reasons.append(f"{cond.variable}={value:.2f} {cond.shift:+.2f} ({cond.note})")
+    return max(-MAX_TOTAL_SHIFT, min(MAX_TOTAL_SHIFT, total)), reasons
+
+
+def apply_state_shift(base_rates: dict[str, float], shift: float) -> dict[str, float]:
+    """Move probability mass along the outcome ladder by `shift`.
+
+    A positive shift moves that fraction of the mass sitting on the two worst
+    outcomes onto the two best, split in proportion to their existing weight.
+    A negative shift mirrors it. `partial` is never touched, and the total is
+    preserved exactly, so the result still sums to 1.0.
+    """
+    rates = dict(base_rates)
+    if shift == 0.0:
+        return rates
+
+    src = WORST_TWO if shift > 0 else BEST_TWO
+    dst = BEST_TWO if shift > 0 else WORST_TWO
+    magnitude = abs(shift)
+
+    moved = 0.0
+    for key in src:
+        take = rates.get(key, 0.0) * magnitude
+        rates[key] = rates.get(key, 0.0) - take
+        moved += take
+
+    dst_total = sum(rates.get(key, 0.0) for key in dst)
+    if dst_total <= 0.0:
+        for key in dst:
+            rates[key] = rates.get(key, 0.0) + moved / len(dst)
+    else:
+        weights = {key: rates.get(key, 0.0) / dst_total for key in dst}
+        for key in dst:
+            rates[key] = rates.get(key, 0.0) + moved * weights[key]
+    return rates
+
+
+def explain_base_rate(
+    domain_models: list[DomainModel],
+    state: dict[str, float],
+) -> list[str]:
+    """Human-readable reasons the base rate moved off its declared value."""
+    for dm in domain_models:
+        if dm.base_rates:
+            _, reasons = compute_state_shift(dm, state)
+            return [f"{dm.id}: {r}" for r in reasons]
+    return []
 
 
 def compute_mechanical_base_rate(
@@ -79,10 +153,14 @@ def compute_mechanical_base_rate(
     Returns a dict of outcome_id -> probability as the baseline the GM must anchor to.
     If no base rates are defined, returns a default distribution.
     """
-    # Use the first domain model with base_rates defined
+    # The most relevant domain model that declares base rates supplies them,
+    # then its state conditions shift mass along the outcome ladder. The state
+    # argument used to be accepted and ignored, so the odds were identical
+    # every turn no matter what the world looked like.
     for dm in domain_models:
         if dm.base_rates:
-            return dm.base_rates
+            shift, _ = compute_state_shift(dm, state)
+            return apply_state_shift(dm.base_rates, shift)
 
     # Default base rates by action category
     defaults = {
@@ -240,4 +318,65 @@ def normalize_probabilities(packet: AdjudicationPacket) -> AdjudicationPacket:
     else:
         for o in packet.possible_outcomes:
             o.probability = o.probability / total
+    return packet
+
+
+def clamp_to_base_rates(
+    packet: AdjudicationPacket,
+    base_rates: dict[str, float],
+    tolerance: float = 0.15,
+    max_passes: int = 64,
+) -> AdjudicationPacket:
+    """Project the GM's distribution into its allowed band, keeping the sum at 1.0.
+
+    ADR-001 says the GM may adjust each outcome by at most +/-`tolerance` from
+    the mechanical base rate. `validate_adjudication` has always been able to
+    detect a violation but was never called, so nothing enforced it. This is the
+    enforcement.
+
+    Clamping alone does not achieve it: clamp-then-renormalise pushes values
+    straight back out of the band (a 0.70 success against a 0.20 base lands at
+    0.41 when the ceiling is 0.35). So this alternates clamping with pushing the
+    leftover probability into whatever headroom each outcome still has, which
+    converges to a point inside every band summing to 1.0 whenever one exists.
+
+    If the bands cannot sum to 1.0 -- possible when a scenario's base rates are
+    themselves malformed -- it stops at the clamped values rather than looping,
+    and the distribution will not sum to 1.0. The caller has already logged the
+    original violation, and `resolve_action` handles a short distribution.
+    """
+    bounds: dict[str, tuple[float, float]] = {}
+    for outcome in packet.possible_outcomes:
+        base = base_rates.get(outcome.outcome_id)
+        if base is None:
+            bounds[outcome.outcome_id] = (0.0, 1.0)
+        else:
+            bounds[outcome.outcome_id] = (
+                max(0.0, base - tolerance),
+                min(1.0, base + tolerance),
+            )
+
+    probs = {o.outcome_id: o.probability for o in packet.possible_outcomes}
+
+    for _ in range(max_passes):
+        for key, (low, high) in bounds.items():
+            probs[key] = max(low, min(high, probs[key]))
+
+        residual = 1.0 - sum(probs.values())
+        if abs(residual) < 1e-12:
+            break
+
+        if residual > 0:
+            headroom = {k: bounds[k][1] - probs[k] for k in probs}
+        else:
+            headroom = {k: probs[k] - bounds[k][0] for k in probs}
+        total_headroom = sum(headroom.values())
+        if total_headroom <= 1e-12:
+            break
+
+        for key in probs:
+            probs[key] += residual * (headroom[key] / total_headroom)
+
+    for outcome in packet.possible_outcomes:
+        outcome.probability = probs[outcome.outcome_id]
     return packet
