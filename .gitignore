@@ -10,6 +10,12 @@ build/
 # Data
 *.db
 *.sqlite
+# SQLite runs in WAL mode; these sidecars are not matched by *.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
+# Saved games (runtime output, one database per run)
+games/
 
 # IDE
 .idea/

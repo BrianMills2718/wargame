@@ -84,9 +84,35 @@ class CausalEdge(BaseModel):
 
 
 class VariableDynamic(BaseModel):
-    """Per-variable decay or momentum."""
-    decay_rate: float | None = None  # per-turn decay (toward baseline)
-    momentum: float | None = None  # per-turn autonomous change
+    """Per-variable reversion toward a baseline, plus autonomous momentum.
+
+    decay_rate is the FRACTION of the gap to baseline closed each turn
+    (0.0 = never reverts, 1.0 = snaps to baseline immediately). It is not a
+    flat per-turn subtraction. A variable with a decay_rate must declare the
+    baseline it reverts toward; there is no implicit zero.
+    """
+    decay_rate: float | None = Field(
+        None, ge=0.0, le=1.0,
+        description="Fraction of the gap to baseline closed per turn.",
+    )
+    baseline: float | None = Field(
+        None, description="Value this variable reverts toward when nothing acts on it."
+    )
+    momentum: float | None = Field(
+        None, description="Autonomous per-turn change, applied regardless of baseline."
+    )
+
+    @model_validator(mode="after")
+    def check_decay_baseline_pairing(self) -> "VariableDynamic":
+        if self.decay_rate is not None and self.baseline is None:
+            raise ValueError(
+                "decay_rate requires an explicit baseline. Note the contract "
+                "changed: decay_rate is now a positive fraction of the gap to "
+                "baseline closed per turn, not a flat negative per-turn delta."
+            )
+        if self.baseline is not None and self.decay_rate is None:
+            raise ValueError("baseline is only meaningful together with a decay_rate")
+        return self
 
 
 class MultiTurnActionTemplate(BaseModel):

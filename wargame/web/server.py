@@ -39,10 +39,16 @@ from wargame.gm import (
 from wargame.models import ActionIntent, AdjudicationPacket
 from wargame.parser import build_parser_messages
 from wargame.scenario import init_db, load_scenario
-
-GM_MODEL = "gemini/gemini-2.5-flash"
-PARSER_MODEL = "gemini/gemini-2.5-flash"
-AI_MODEL = "gemini/gemini-2.5-flash"
+from wargame.config import (
+    AI_MAX_BUDGET,
+    AI_MODEL,
+    DEFAULT_DB_DIR,
+    GM_MAX_BUDGET,
+    GM_MODEL,
+    LLM_CALL_DEFAULTS,
+    PARSER_MAX_BUDGET,
+    PARSER_MODEL,
+)
 
 app = FastAPI(title="Geopolitical Wargame")
 
@@ -56,6 +62,7 @@ game: dict = {
     "human_actor": None,
     "ai_actors": [],
     "mode": None,
+    "db_path": None,
 }
 
 WEB_DIR = Path(__file__).parent
@@ -79,6 +86,7 @@ class StartGameRequest(BaseModel):
     scenario_path: str = "scenarios/us_iran_2026.yaml"
     play_as: str = "actor_us"
     mode: str = "human_vs_ai"
+    db_path: str | None = None
 
 
 class CommandRequest(BaseModel):
@@ -95,8 +103,12 @@ async def index():
 async def start_game(req: StartGameRequest):
     """Initialize a new game."""
     spec = load_scenario(req.scenario_path)
-    conn = init_db(spec)
     trace_id = f"wargame_{uuid.uuid4().hex[:8]}"
+    db_path = req.db_path
+    if db_path is None:
+        Path(DEFAULT_DB_DIR).mkdir(parents=True, exist_ok=True)
+        db_path = str(Path(DEFAULT_DB_DIR) / f"{trace_id}.sqlite")
+    conn = init_db(spec, db_path)
 
     actor_ids = [a.id for a in spec.actors]
     human_actor = req.play_as if req.mode != "ai_vs_ai" else None
@@ -110,6 +122,7 @@ async def start_game(req: StartGameRequest):
     game["human_actor"] = human_actor
     game["ai_actors"] = ai_actors
     game["mode"] = req.mode
+    game["db_path"] = db_path
 
     actor_names = {a.id: a.name for a in spec.actors}
     return {
@@ -119,6 +132,7 @@ async def start_game(req: StartGameRequest):
         "play_as": human_actor,
         "actor_names": actor_names,
         "trace_id": trace_id,
+        "db_path": db_path,
         "state": get_all_variables(conn),
         "estimates": get_actor_state_estimates(conn, human_actor) if human_actor else get_all_variables(conn),
     }
@@ -163,7 +177,8 @@ def _get_ai_action(conn, spec, actor_id, turn_number, trace_id):
     )
     intent, _ = call_llm_structured(
         model=AI_MODEL, messages=messages, response_model=ActionIntent,
-        task="wargame_ai_opponent", trace_id=trace_id, max_budget=0.5,
+        task="wargame_ai_opponent", trace_id=trace_id, max_budget=AI_MAX_BUDGET,
+        **LLM_CALL_DEFAULTS,
     )
     intent.actor_id = actor_id
     return intent
@@ -185,7 +200,8 @@ def _adjudicate(conn, spec, action, turn, mechanical_deltas, trace_id):
     )
     packet, _ = call_llm_structured(
         model=GM_MODEL, messages=gm_messages, response_model=AdjudicationPacket,
-        task="wargame_gm_adjudication", trace_id=trace_id, max_budget=1.0,
+        task="wargame_gm_adjudication", trace_id=trace_id, max_budget=GM_MAX_BUDGET,
+        **LLM_CALL_DEFAULTS,
     )
 
     prob_sum = sum(o.probability for o in packet.possible_outcomes)
@@ -280,7 +296,8 @@ async def submit_command(req: CommandRequest):
         messages = build_parser_messages(req.directive, actor, instruments, budget)
         human_intent, _ = call_llm_structured(
             model=PARSER_MODEL, messages=messages, response_model=ActionIntent,
-            task="wargame_parser", trace_id=trace_id, max_budget=0.5,
+            task="wargame_parser", trace_id=trace_id, max_budget=PARSER_MAX_BUDGET,
+            **LLM_CALL_DEFAULTS,
         )
         human_intent.actor_id = human_actor
         turn_actions.append((human_actor, human_intent))

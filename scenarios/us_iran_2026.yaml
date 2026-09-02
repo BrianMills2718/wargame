@@ -172,13 +172,18 @@ causal_edges:
   - {source: sv_elite_cohesion, target: sv_regime_survival_risk, effect: -0.15, lag: 0}
 
 variable_dynamics:
-  sv_military_tension: {decay_rate: -0.05}
-  sv_diplomatic_engagement: {decay_rate: -0.08}
-  sv_proxy_activity: {decay_rate: -0.03}
-  sv_proxy_network_presence: {decay_rate: -0.01}
-  sv_sanctions_intensity: {decay_rate: -0.02}
-  sv_nuclear_latency: {momentum: -0.3}
-  sv_force_posture: {decay_rate: -0.02}
+  # decay_rate = fraction of the gap to baseline closed per turn.
+  # baseline = where the variable sits when nobody acts on it. These are
+  # situational floors, not zero: a crisis has ambient tension, a sanctions
+  # architecture is statutory and does not lapse, proxies have a standing tempo.
+  sv_military_tension:       {decay_rate: 0.15, baseline: 0.25}
+  sv_diplomatic_engagement:  {decay_rate: 0.20, baseline: 0.10}
+  sv_proxy_activity:         {decay_rate: 0.12, baseline: 0.25}
+  sv_proxy_network_presence: {decay_rate: 0.03, baseline: 0.60}
+  sv_sanctions_intensity:    {decay_rate: 0.05, baseline: 0.55}
+  sv_force_posture:          {decay_rate: 0.06, baseline: 0.45}
+  # A clock, not a reversion: the program advances on its own toward breakout.
+  sv_nuclear_latency:        {momentum: -0.3}
 
 multi_turn_actions:
   sanctions_ramp:

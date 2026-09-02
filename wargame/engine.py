@@ -79,29 +79,28 @@ def apply_delta(conn: sqlite3.Connection, var_id: str, delta: float, *, respect_
 
 
 def apply_decay_and_momentum(conn: sqlite3.Connection) -> dict[str, float]:
-    """Apply per-variable decay and momentum. Returns deltas applied.
+    """Apply per-variable baseline reversion and momentum. Returns deltas applied.
 
-    Decay moves a variable toward 0 (or its range minimum for positive-only vars).
-    Momentum is an autonomous per-turn change (e.g., nuclear program advancing).
+    Reversion is proportional: each turn a variable closes `decay_rate` of the
+    gap between its current value and its declared baseline. This asymptotes to
+    the baseline instead of marching to zero. Momentum is an autonomous
+    per-turn change (e.g. a nuclear program advancing) and ignores the baseline.
     """
     deltas = {}
     rows = conn.execute(
-        "SELECT vd.var_id, vd.decay_rate, vd.momentum FROM variable_dynamics vd"
+        "SELECT vd.var_id, vd.decay_rate, vd.baseline, vd.momentum FROM variable_dynamics vd"
     ).fetchall()
 
-    for var_id, decay_rate, momentum in rows:
+    for var_id, decay_rate, baseline, momentum in rows:
         total_delta = 0.0
 
         if decay_rate is not None:
+            if baseline is None:
+                raise ValueError(
+                    f"{var_id} has a decay_rate but no baseline in variable_dynamics"
+                )
             current = get_variable(conn, var_id)
-            # Decay toward 0 (or range_min if positive-only)
-            if current > 0:
-                d = max(decay_rate, -current)  # don't overshoot past 0
-            elif current < 0:
-                d = min(-decay_rate, -current)
-            else:
-                d = 0.0
-            total_delta += d
+            total_delta += decay_rate * (baseline - current)
 
         if momentum is not None:
             total_delta += momentum
