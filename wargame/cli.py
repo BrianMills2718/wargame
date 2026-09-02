@@ -54,6 +54,7 @@ from wargame.scorer import (
     to_scored_actor,
 )
 from wargame.config import (
+    gm_call_defaults,
     ADVISOR_MAX_BUDGET,
     ADVISOR_MODEL,
     AI_MAX_BUDGET,
@@ -340,6 +341,7 @@ def run_game(
     play_as: str = "actor_us",
     num_turns: int | None = None,
     db_path: str | None = None,
+    gm_model: str | None = None,
 ) -> None:
     """Run the main game loop."""
     spec = load_scenario(scenario_path)
@@ -349,9 +351,10 @@ def run_game(
         db_path = str(Path(DEFAULT_DB_DIR) / f"{trace_id}.sqlite")
     conn = init_db(spec, db_path)
     # One GM conversation for the whole game: it remembers every adjudication.
+    resolved_gm_model = gm_model or GM_MODEL
     gm_session = GMSession(
-        spec=spec, model=GM_MODEL, max_budget=GM_MAX_BUDGET,
-        trace_id=trace_id, call_defaults=LLM_CALL_DEFAULTS,
+        spec=spec, model=resolved_gm_model, max_budget=GM_MAX_BUDGET,
+        trace_id=trace_id, call_defaults=gm_call_defaults(resolved_gm_model),
     )
     total_turns = num_turns or spec.meta.turns
     actor_ids = [a.id for a in spec.actors]
@@ -369,6 +372,7 @@ def run_game(
         actor_name = next(a.name for a in spec.actors if a.id == human_actor)
         print(f"  You are: {actor_name}")
     print(f"  Trace ID: {trace_id}")
+    print(f"  GM model: {resolved_gm_model}")
     print(f"  Database: {db_path}")
 
     for turn_idx in range(total_turns):
@@ -535,6 +539,7 @@ def main() -> None:
     parser.add_argument("--mode", choices=["human_vs_ai", "human_vs_human", "ai_vs_ai"], default="human_vs_ai")
     parser.add_argument("--play-as", type=str, default="actor_us", help="Actor ID to play as (human_vs_ai mode)")
     parser.add_argument("--turns", type=int, default=None, help="Override number of turns")
+    parser.add_argument("--gm-model", type=str, default=None, help="Override the GM route (e.g. claude-code/haiku for free but slow)")
     parser.add_argument("--db", type=str, default=None, help="Path to the game database file (default: games/<trace_id>.sqlite)")
     args = parser.parse_args()
 
@@ -544,6 +549,7 @@ def main() -> None:
         play_as=args.play_as,
         num_turns=args.turns,
         db_path=args.db,
+        gm_model=args.gm_model,
     )
 
 

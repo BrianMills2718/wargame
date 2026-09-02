@@ -44,6 +44,7 @@ from wargame.models import ActionIntent, AdjudicationPacket
 from wargame.parser import build_parser_messages
 from wargame.scenario import init_db, load_scenario
 from wargame.config import (
+    gm_call_defaults,
     AI_MAX_BUDGET,
     AI_MODEL,
     DEFAULT_DB_DIR,
@@ -130,7 +131,7 @@ async def start_game(req: StartGameRequest):
     game["db_path"] = db_path
     game["gm_session"] = GMSession(
         spec=spec, model=GM_MODEL, max_budget=GM_MAX_BUDGET,
-        trace_id=trace_id, call_defaults=LLM_CALL_DEFAULTS,
+        trace_id=trace_id, call_defaults=gm_call_defaults(GM_MODEL),
     )
 
     actor_names = {a.id: a.name for a in spec.actors}

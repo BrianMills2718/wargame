@@ -17,10 +17,50 @@ Context for the values below (verified 2026-09-02):
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
 # Primary route for all three call sites.
-GM_MODEL = "openrouter/openai/gpt-5.6-luna"
+# GM routing. Measured on identical code, same scenario, 6 adjudications each:
+#
+#   route                       quality                     latency    cost/20-turn game
+#   openrouter/.../gpt-5.6-luna odds spread 0.07            14s/call   $0.09
+#   claude-code/haiku           odds spread 0.23            116s/call  $0.00 (subscription)
+#
+# Haiku is the better adjudicator on this evidence -- it discriminates between
+# situations roughly three times as much, writes four times the reasoning, and
+# references the running conversation more often. It is also eight times slower,
+# because each call spawns a Claude Code process. 116s per adjudication means
+# about four minutes of waiting per turn for a human player and 77 minutes of GM
+# time in a 20-turn game, which is not playable.
+#
+# So the route is chosen by what the game is for, not by which model is better:
+# the fast metered route for anything a human waits on, the free subscription
+# route for unattended AI-vs-AI runs where 500 games cost nothing instead of $45.
+# Override with WARGAME_GM_MODEL, or --gm-model on the CLI.
+GM_MODEL_INTERACTIVE = "openrouter/openai/gpt-5.6-luna"
+GM_MODEL_BATCH = "claude-code/haiku"
+GM_MODEL = os.environ.get("WARGAME_GM_MODEL", GM_MODEL_INTERACTIVE)
+
+
+def gm_call_defaults(model: str) -> dict[str, Any]:
+    """Call kwargs for a GM route.
+
+    Agent routes (claude-code/*) take no fallback chain: a mixed agent/non-agent
+    chain silently drops agent-only kwargs on the non-agent leg, and a
+    subscription route has no spend to protect.
+    """
+    if model.startswith(("claude-code", "codex", "openai-agents")):
+        return {
+            "model_justification": (
+                "Wargame GM adjudication on the Claude subscription via the "
+                "claude-code agent route (observed cost 0.0). Used for unattended "
+                "AI-vs-AI runs where latency does not matter."
+            ),
+        }
+    return dict(LLM_CALL_DEFAULTS)
+
+
 PARSER_MODEL = "openrouter/openai/gpt-5.6-luna"
 AI_MODEL = "openrouter/openai/gpt-5.6-luna"
 ADVISOR_MODEL = "openrouter/openai/gpt-5.6-luna"
@@ -38,6 +78,10 @@ MODEL_JUSTIFICATION = (
 )
 
 # Spread into every call_llm_structured() invocation in this package.
+# The GM route needs no fallback_models: a mixed agent/non-agent chain silently
+# drops agent-only kwargs on the non-agent leg, and the subscription route has
+# no spend to protect.
+
 LLM_CALL_DEFAULTS: dict[str, Any] = {
     "reasoning_effort": REASONING_EFFORT,
     "fallback_models": FALLBACK_MODELS,
