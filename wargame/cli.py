@@ -61,6 +61,7 @@ from wargame.config import (
     SCORER_MAX_BUDGET,
     SCORER_MODEL,
     DEFAULT_DB_DIR,
+    GM_CALL_DEFAULTS,
     GM_MAX_BUDGET,
     GM_MODEL,
     LLM_CALL_DEFAULTS,
@@ -351,7 +352,7 @@ def run_game(
     # One GM conversation for the whole game: it remembers every adjudication.
     gm_session = GMSession(
         spec=spec, model=GM_MODEL, max_budget=GM_MAX_BUDGET,
-        trace_id=trace_id, call_defaults=LLM_CALL_DEFAULTS,
+        trace_id=trace_id, call_defaults=GM_CALL_DEFAULTS,
     )
     total_turns = num_turns or spec.meta.turns
     actor_ids = [a.id for a in spec.actors]

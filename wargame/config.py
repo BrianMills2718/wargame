@@ -20,7 +20,14 @@ from __future__ import annotations
 from typing import Any
 
 # Primary route for all three call sites.
-GM_MODEL = "openrouter/openai/gpt-5.6-luna"
+# The GM runs on the Claude subscription via the claude-code agent route, not
+# on metered tokens: a probe returned cost 0.0. It is the most reasoning-heavy
+# call in the system and the one whose quality decides whether the game is any
+# good, so it is the one worth spending the subscription on. Everything else
+# stays on a metered route because each claude-code call spawns a Claude Code
+# process (~34s observed on a trivial call) and a parser call sits directly in
+# front of a waiting human.
+GM_MODEL = "claude-code/haiku"
 PARSER_MODEL = "openrouter/openai/gpt-5.6-luna"
 AI_MODEL = "openrouter/openai/gpt-5.6-luna"
 ADVISOR_MODEL = "openrouter/openai/gpt-5.6-luna"
@@ -38,6 +45,17 @@ MODEL_JUSTIFICATION = (
 )
 
 # Spread into every call_llm_structured() invocation in this package.
+# The GM route needs no fallback_models: a mixed agent/non-agent chain silently
+# drops agent-only kwargs on the non-agent leg, and the subscription route has
+# no spend to protect.
+GM_CALL_DEFAULTS: dict[str, Any] = {
+    "model_justification": (
+        "Wargame GM adjudication on the Claude subscription via the claude-code "
+        "agent route (observed cost 0.0). It is the most reasoning-heavy call in "
+        "the system and runs as one long conversation per game."
+    ),
+}
+
 LLM_CALL_DEFAULTS: dict[str, Any] = {
     "reasoning_effort": REASONING_EFFORT,
     "fallback_models": FALLBACK_MODELS,
