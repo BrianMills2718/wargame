@@ -47,6 +47,7 @@ from wargame.gm import (
     validate_adjudication,
 )
 from wargame.advisor import build_advisor_messages
+from wargame.gm_session import GMSession
 from wargame.scorer import (
     build_scorer_messages,
     format_scoreboard,
@@ -276,6 +277,7 @@ def adjudicate_action(
     turn_number: int,
     mechanical_deltas: dict[str, float],
     trace_id: str,
+    gm_session: GMSession,
 ) -> tuple[dict, AdjudicationPacket]:
     """Run GM adjudication and resolve an action. Returns (chosen_outcome, packet)."""
     valid_var_ids = {sv.id for sv in spec.state_variables}
@@ -285,25 +287,13 @@ def adjudicate_action(
     dms = select_relevant_domain_models(spec, action)
     base_rates = compute_mechanical_base_rate(dms, action, state)
 
-    messages = build_gm_messages(
+    packet = gm_session.adjudicate(
         action=action,
         state=state,
-        domain_models=dms,
+        relevant_domain_models=dms,
         base_rates=base_rates,
-        actor_ids=list(valid_actor_ids),
-        variable_ids=list(valid_var_ids),
+        turn_number=turn_number,
         mechanical_deltas=mechanical_deltas,
-        turn_history=get_recent_turn_history(conn, turn_number),
-    )
-
-    packet, _ = call_llm_structured(
-        model=GM_MODEL,
-        messages=messages,
-        response_model=AdjudicationPacket,
-        task="wargame_gm_adjudication",
-        trace_id=trace_id,
-        max_budget=GM_MAX_BUDGET,
-        **LLM_CALL_DEFAULTS,
     )
 
     # Normalize
@@ -358,6 +348,11 @@ def run_game(
         Path(DEFAULT_DB_DIR).mkdir(parents=True, exist_ok=True)
         db_path = str(Path(DEFAULT_DB_DIR) / f"{trace_id}.sqlite")
     conn = init_db(spec, db_path)
+    # One GM conversation for the whole game: it remembers every adjudication.
+    gm_session = GMSession(
+        spec=spec, model=GM_MODEL, max_budget=GM_MAX_BUDGET,
+        trace_id=trace_id, call_defaults=LLM_CALL_DEFAULTS,
+    )
     total_turns = num_turns or spec.meta.turns
     actor_ids = [a.id for a in spec.actors]
 
@@ -433,6 +428,7 @@ def run_game(
 
             chosen, packet = adjudicate_action(
                 conn, spec, action, turn, mech.all_mechanical_deltas, trace_id,
+                gm_session=gm_session,
             )
 
             print(f"  Result: {chosen['outcome_id'].upper()}")
