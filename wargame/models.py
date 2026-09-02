@@ -267,3 +267,31 @@ class ObservationPacket(BaseModel):
         default_factory=dict,
         description="Updated estimates for observable variables. NOT canonical values.",
     )
+
+
+# ---------------------------------------------------------------------------
+# Player advisor (ADR-004: reliable out-of-game analyst)
+# ---------------------------------------------------------------------------
+
+class AdvisorOption(BaseModel):
+    """One concrete thing the player could do, with its likely consequence."""
+    action: str = Field(description="Plain-language order the player could give, phrased as they would type it.")
+    instrument: str = Field(description="Which of the player's instrument ids this would use.")
+    likely_effect: str = Field(description="What this would probably achieve, in one or two sentences.")
+    risk: str = Field(description="The most important way this could go wrong.")
+
+
+class AdvisorAnswer(BaseModel):
+    """The advisor's response to a player question.
+
+    The advisor is a reliable out-of-game analyst (ADR-004). It knows it is a
+    game, sees exactly what the player sees, and never sees behind fog of war.
+    It is not an in-game character and does not roleplay.
+    """
+    answer: str = Field(description="Direct answer to the question asked, in plain language. No jargon.")
+    options: list[AdvisorOption] = Field(
+        description="Two or three concrete things the player could do about it. Empty if the question was not asking what to do."
+    )
+    uncertainty: str = Field(
+        description="What you genuinely cannot see or do not know that bears on this answer. Say so plainly."
+    )
