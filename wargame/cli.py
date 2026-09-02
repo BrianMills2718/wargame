@@ -46,11 +46,18 @@ from wargame.gm import (
     validate_adjudication,
 )
 from wargame.advisor import build_advisor_messages
+from wargame.scorer import (
+    build_scorer_messages,
+    format_scoreboard,
+    to_scored_actor,
+)
 from wargame.config import (
     ADVISOR_MAX_BUDGET,
     ADVISOR_MODEL,
     AI_MAX_BUDGET,
     AI_MODEL,
+    SCORER_MAX_BUDGET,
+    SCORER_MODEL,
     DEFAULT_DB_DIR,
     GM_MAX_BUDGET,
     GM_MODEL,
@@ -58,7 +65,7 @@ from wargame.config import (
     PARSER_MAX_BUDGET,
     PARSER_MODEL,
 )
-from wargame.models import ActionIntent, AdjudicationPacket, AdvisorAnswer, ScenarioSpec
+from wargame.models import ActionIntent, AdjudicationPacket, ActorScore, AdvisorAnswer, ScenarioSpec
 from wargame.parser import build_parser_messages, validate_action_intent
 from wargame.scenario import init_db, load_scenario
 
@@ -480,6 +487,36 @@ def run_game(
         change = final[var_id] - init_val
         if abs(change) > 0.01:
             print(f"  {var_id.replace('sv_', ''):<30} {init_val:>8.2f} {final[var_id]:>8.2f} {change:>+8.2f}")
+
+    # Final scoring: each actor judged only against its own declared values.
+    print_banner("FINAL ASSESSMENT", "\u2500")
+    scored = []
+    for actor in spec.actors:
+        messages = build_scorer_messages(
+            actor=actor,
+            initial_state=spec.initial_state,
+            final_state=final,
+            action_history=action_histories[actor.id],
+            turns_played=total_turns,
+        )
+        try:
+            score, _ = call_llm_structured(
+                model=SCORER_MODEL,
+                messages=messages,
+                response_model=ActorScore,
+                task="wargame_scorer",
+                trace_id=trace_id,
+                max_budget=SCORER_MAX_BUDGET,
+                **LLM_CALL_DEFAULTS,
+            )
+            scored.append(to_scored_actor(actor, score))
+        except Exception as e:
+            print(f"  \u26a0 Could not score {actor.name}: {e}")
+
+    if scored:
+        print(format_scoreboard(scored))
+        print("\n  Scores are asymmetric: each side is judged only against its own")
+        print("  declared values, so they are not directly comparable to each other.")
 
     # Cost summary
     try:
