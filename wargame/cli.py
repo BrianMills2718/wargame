@@ -44,13 +44,19 @@ from wargame.gm import (
     select_relevant_domain_models,
     validate_adjudication,
 )
+from wargame.config import (
+    AI_MAX_BUDGET,
+    AI_MODEL,
+    DEFAULT_DB_DIR,
+    GM_MAX_BUDGET,
+    GM_MODEL,
+    LLM_CALL_DEFAULTS,
+    PARSER_MAX_BUDGET,
+    PARSER_MODEL,
+)
 from wargame.models import ActionIntent, AdjudicationPacket, ScenarioSpec
 from wargame.parser import build_parser_messages, validate_action_intent
 from wargame.scenario import init_db, load_scenario
-
-GM_MODEL = "gemini/gemini-2.5-flash"
-PARSER_MODEL = "gemini/gemini-2.5-flash"
-AI_MODEL = "gemini/gemini-2.5-flash"
 
 
 def print_banner(text: str, char: str = "=") -> None:
@@ -103,7 +109,8 @@ def get_human_action(
                 response_model=ActionIntent,
                 task="wargame_parser",
                 trace_id=trace_id,
-                max_budget=0.5,
+                max_budget=PARSER_MAX_BUDGET,
+                **LLM_CALL_DEFAULTS,
             )
 
             issues = validate_action_intent(intent, actor)
@@ -161,7 +168,8 @@ def get_ai_action(
         response_model=ActionIntent,
         task="wargame_ai_opponent",
         trace_id=trace_id,
-        max_budget=0.5,
+        max_budget=AI_MAX_BUDGET,
+        **LLM_CALL_DEFAULTS,
     )
 
     # Fix actor_id if AI got it wrong
@@ -202,7 +210,8 @@ def adjudicate_action(
         response_model=AdjudicationPacket,
         task="wargame_gm_adjudication",
         trace_id=trace_id,
-        max_budget=1.0,
+        max_budget=GM_MAX_BUDGET,
+        **LLM_CALL_DEFAULTS,
     )
 
     # Normalize
@@ -240,11 +249,15 @@ def run_game(
     mode: str = "human_vs_ai",
     play_as: str = "actor_us",
     num_turns: int | None = None,
+    db_path: str | None = None,
 ) -> None:
     """Run the main game loop."""
     spec = load_scenario(scenario_path)
-    conn = init_db(spec)
     trace_id = f"wargame_{uuid.uuid4().hex[:8]}"
+    if db_path is None:
+        Path(DEFAULT_DB_DIR).mkdir(parents=True, exist_ok=True)
+        db_path = str(Path(DEFAULT_DB_DIR) / f"{trace_id}.sqlite")
+    conn = init_db(spec, db_path)
     total_turns = num_turns or spec.meta.turns
     actor_ids = [a.id for a in spec.actors]
 
@@ -261,6 +274,7 @@ def run_game(
         actor_name = next(a.name for a in spec.actors if a.id == human_actor)
         print(f"  You are: {actor_name}")
     print(f"  Trace ID: {trace_id}")
+    print(f"  Database: {db_path}")
 
     for turn_idx in range(total_turns):
         # Run mechanical phases
@@ -382,6 +396,7 @@ def main() -> None:
     parser.add_argument("--mode", choices=["human_vs_ai", "human_vs_human", "ai_vs_ai"], default="human_vs_ai")
     parser.add_argument("--play-as", type=str, default="actor_us", help="Actor ID to play as (human_vs_ai mode)")
     parser.add_argument("--turns", type=int, default=None, help="Override number of turns")
+    parser.add_argument("--db", type=str, default=None, help="Path to the game database file (default: games/<trace_id>.sqlite)")
     args = parser.parse_args()
 
     run_game(
@@ -389,6 +404,7 @@ def main() -> None:
         mode=args.mode,
         play_as=args.play_as,
         num_turns=args.turns,
+        db_path=args.db,
     )
 
 

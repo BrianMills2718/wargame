@@ -65,6 +65,7 @@ def _create_tables(conn: sqlite3.Connection) -> None:
         CREATE TABLE IF NOT EXISTS variable_dynamics (
             var_id TEXT PRIMARY KEY REFERENCES state_variables(var_id),
             decay_rate REAL,
+            baseline REAL,
             momentum REAL
         );
 
@@ -191,8 +192,8 @@ def _populate(conn: sqlite3.Connection, spec: ScenarioSpec) -> None:
     # Variable dynamics
     for var_id, dyn in spec.variable_dynamics.items():
         conn.execute(
-            "INSERT INTO variable_dynamics (var_id, decay_rate, momentum) VALUES (?, ?, ?)",
-            (var_id, dyn.decay_rate, dyn.momentum),
+            "INSERT INTO variable_dynamics (var_id, decay_rate, baseline, momentum) VALUES (?, ?, ?, ?)",
+            (var_id, dyn.decay_rate, dyn.baseline, dyn.momentum),
         )
 
     # Record turn 0 in state history
