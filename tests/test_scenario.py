@@ -73,12 +73,14 @@ class TestDomainModels:
                 abs(total - 1.0) <= 0.001
             ), f"Domain model {dm.id} base_rates sum to {total}, not 1.0"
 
-    @pytest.mark.xfail(
-        reason="dm_nuclear_latency declares no base rates; falls through to whichever model sorts first — known defect",
-        strict=True,
-    )
     def test_every_domain_model_declares_base_rates(self):
-        """Every domain model should have non-empty base_rates."""
+        """Every domain model must declare base_rates.
+
+        A model without base rates silently falls through to whichever model
+        sorts first, causing ambiguous and unintuitive adjudication. Each
+        model must declare its base rate distribution so compute_mechanical_base_rate
+        finds the right rates for the right domain.
+        """
         spec = load_scenario("scenarios/us_iran_2026.yaml")
 
         for dm in spec.domain_models:
