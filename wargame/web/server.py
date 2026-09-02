@@ -17,6 +17,7 @@ from llm_client import call_llm_structured
 
 from wargame.ai_opponent import build_ai_opponent_messages
 from wargame.engine import (
+    get_recent_turn_history,
     apply_action_transitions,
     generate_action_id,
     get_all_variables,
@@ -199,6 +200,7 @@ def _adjudicate(conn, spec, action, turn, mechanical_deltas, trace_id):
         action=action, state=state, domain_models=dms, base_rates=base_rates,
         actor_ids=list(valid_actor_ids), variable_ids=list(valid_var_ids),
         mechanical_deltas=mechanical_deltas,
+        turn_history=get_recent_turn_history(conn, turn),
     )
     packet, _ = call_llm_structured(
         model=GM_MODEL, messages=gm_messages, response_model=AdjudicationPacket,
