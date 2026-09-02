@@ -295,3 +295,44 @@ class AdvisorAnswer(BaseModel):
     uncertainty: str = Field(
         description="What you genuinely cannot see or do not know that bears on this answer. Say so plainly."
     )
+
+
+# ---------------------------------------------------------------------------
+# End-of-game scoring (asymmetric: each actor judged against its own values)
+# ---------------------------------------------------------------------------
+
+class ValueAssessment(BaseModel):
+    """How well one of an actor's terminal values was served over the game."""
+    value_id: str = Field(description="Must match a value id from the actor's spec.")
+    score: float = Field(
+        ge=-1.0, le=1.0,
+        description="-1.0 = this value was badly damaged, 0.0 = unchanged, +1.0 = strongly advanced.",
+    )
+    reasoning: str = Field(description="Why, in two or three sentences, grounded in what actually happened.")
+    key_evidence: list[str] = Field(
+        description="Specific state changes or events supporting the score. Cite variables by name."
+    )
+
+
+class ActorScore(BaseModel):
+    """The scorer's judgment of one actor's game.
+
+    Deliberately carries no total. The LLM judges how well each value was
+    served; Python multiplies by the declared weights and sums. Keeping the
+    arithmetic out of the model is the same rule the rest of the engine
+    follows: LLMs suggest, Python decides.
+    """
+    actor_id: str
+    value_assessments: list[ValueAssessment]
+    narrative: str = Field(description="Two to four sentences on how this actor's game went overall.")
+    turning_point: str = Field(description="The single moment that mattered most for this actor, and why.")
+
+
+class ScoredActor(BaseModel):
+    """An ActorScore with the engine-computed weighted total attached."""
+    actor_id: str
+    actor_name: str
+    weighted_total: float
+    value_assessments: list[ValueAssessment]
+    narrative: str
+    turning_point: str
