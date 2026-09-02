@@ -39,6 +39,7 @@ from wargame.gm import (
     select_relevant_domain_models,
     validate_adjudication,
 )
+from wargame.gm_session import GMSession
 from wargame.models import ActionIntent, AdjudicationPacket
 from wargame.parser import build_parser_messages
 from wargame.scenario import init_db, load_scenario
@@ -66,6 +67,7 @@ game: dict = {
     "ai_actors": [],
     "mode": None,
     "db_path": None,
+    "gm_session": None,
 }
 
 WEB_DIR = Path(__file__).parent
@@ -126,6 +128,10 @@ async def start_game(req: StartGameRequest):
     game["ai_actors"] = ai_actors
     game["mode"] = req.mode
     game["db_path"] = db_path
+    game["gm_session"] = GMSession(
+        spec=spec, model=GM_MODEL, max_budget=GM_MAX_BUDGET,
+        trace_id=trace_id, call_defaults=LLM_CALL_DEFAULTS,
+    )
 
     actor_names = {a.id: a.name for a in spec.actors}
     return {
@@ -196,16 +202,10 @@ def _adjudicate(conn, spec, action, turn, mechanical_deltas, trace_id):
     dms = select_relevant_domain_models(spec, action)
     base_rates = compute_mechanical_base_rate(dms, action, state)
 
-    gm_messages = build_gm_messages(
-        action=action, state=state, domain_models=dms, base_rates=base_rates,
-        actor_ids=list(valid_actor_ids), variable_ids=list(valid_var_ids),
+    packet = game["gm_session"].adjudicate(
+        action=action, state=state, relevant_domain_models=dms,
+        base_rates=base_rates, turn_number=turn,
         mechanical_deltas=mechanical_deltas,
-        turn_history=get_recent_turn_history(conn, turn),
-    )
-    packet, _ = call_llm_structured(
-        model=GM_MODEL, messages=gm_messages, response_model=AdjudicationPacket,
-        task="wargame_gm_adjudication", trace_id=trace_id, max_budget=GM_MAX_BUDGET,
-        **LLM_CALL_DEFAULTS,
     )
 
     prob_sum = sum(o.probability for o in packet.possible_outcomes)

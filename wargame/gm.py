@@ -408,3 +408,108 @@ def clamp_to_base_rates(
     for outcome in packet.possible_outcomes:
         outcome.probability = probs[outcome.outcome_id]
     return packet
+
+
+# ---------------------------------------------------------------------------
+# Conversation mode: one running GM conversation per game
+# ---------------------------------------------------------------------------
+
+def build_gm_system_prompt(spec: ScenarioSpec) -> str:
+    """The invariant half of the GM prompt: rules and the whole world.
+
+    Everything here is identical for every adjudication in a game, which is
+    what makes it cacheable. Anything that changes turn to turn belongs in
+    build_gm_turn_message() instead, appended after this prefix.
+    """
+    dm_text = ""
+    for dm in spec.domain_models:
+        dm_text += f"\n### {dm.id} ({dm.subtype})\n{dm.description}\n"
+        if dm.key_variables:
+            dm_text += f"Key variables: {', '.join(dm.key_variables)}\n"
+        if dm.categories:
+            dm_text += f"Governs action categories: {', '.join(dm.categories)}\n"
+
+    actors_text = "\n".join(
+        f"  {a.id} ({a.name}) — instruments: {', '.join(i.id for i in a.instruments)}"
+        for a in spec.actors
+    )
+    vars_text = ", ".join(sv.id for sv in spec.state_variables)
+
+    return f"""You are the Adjudication Engine for a strict geopolitical simulation.
+
+You will adjudicate every action in this game, one after another, in this same
+conversation. You will therefore remember what has already happened, and you are
+expected to use it: an overture already refused twice is not the same action the
+third time, an actor just humiliated responds differently, and credibility spent
+earlier is not available now. Judge each action as the next move in a sequence.
+
+SCENARIO: {spec.meta.name}
+{spec.meta.description}
+Each turn is {spec.meta.time_per_turn}. The game runs {spec.meta.turns} turns.
+
+ACTORS
+{actors_text}
+
+VALID STATE VARIABLES (state_transitions may use only these ids)
+{vars_text}
+
+HOW THIS WORLD WORKS
+{dm_text}
+
+RULES
+1. NO GOD-MODING. Geopolitics is full of friction. The mechanical base rates you
+   are given each turn are your anchor.
+2. You may adjust each outcome probability by at most ±0.15 from the base rate,
+   with explicit justification.
+3. Your probabilities MUST sum to exactly 1.0.
+4. All var_ids in state_transitions MUST come from the variable list above.
+5. State transition deltas should be small (typically ±0.05 to ±0.20). Large
+   moves are rare.
+6. Explain your reasoning BEFORE deciding probabilities.
+7. For each outcome, describe what happens in 2-3 sentences.
+8. For observability, specify what EACH actor sees for EACH possible outcome.
+9. The acting actor generally knows they attempted the action. The target sees
+   effects proportional to the outcome's observability.
+
+You must output EXACTLY 5 outcomes: critical_success, success, partial, failure,
+critical_failure.
+
+The Current State given to you each turn ALREADY reflects that turn's mechanical
+effects (decay, momentum, causal propagation). Your state_transitions apply on
+top of the values shown. Do not reverse or re-apply them."""
+
+
+def build_gm_turn_message(
+    action: ActionIntent,
+    state: dict[str, float],
+    relevant_domain_models: list[DomainModel],
+    base_rates: dict[str, float],
+    turn_number: int,
+    mechanical_deltas: dict[str, float] | None = None,
+) -> str:
+    """The volatile half: only what differs from one adjudication to the next."""
+    state_text = "\n".join(f"  {k}: {v:.3f}" for k, v in sorted(state.items()))
+    br_text = "\n".join(f"  {k}: {v:.2f}" for k, v in base_rates.items())
+    relevant = ", ".join(dm.id for dm in relevant_domain_models) or "none matched"
+
+    return f"""## Turn {turn_number} — adjudicate this action
+
+Actor: {action.actor_id}
+Category: {action.action_category}
+Instruments: {', '.join(action.instruments_used)}
+Targets: {', '.join(action.target_entities)}
+Intended effect: {action.intended_effect}
+Ambiguity flags: {', '.join(action.ambiguity_flags) if action.ambiguity_flags else 'none'}
+
+Most relevant domain models for this action: {relevant}
+
+## Current State
+{state_text}
+
+## Mechanical Base Rates (your anchor — justify any deviation)
+{br_text}
+
+## Mechanical Effects Already Applied This Turn (context only)
+{_format_mechanical_deltas(mechanical_deltas)}
+
+Generate the AdjudicationPacket."""
