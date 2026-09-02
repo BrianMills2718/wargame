@@ -251,7 +251,12 @@ def _generate_observations(conn, spec, turn, turn_actions):
                 pkt = json.loads(packet_json)
                 for obs_entry in pkt.get("observability", []):
                     if obs_entry.get("actor_id") == actor_id:
-                        obs_for_outcome = obs_entry.get("observations", {}).get(outcome_id, [])
+                        obs_for_outcome = [
+                            note
+                            for entry in obs_entry.get("observations", [])
+                            if entry.get("outcome_id") == outcome_id
+                            for note in entry.get("notes", [])
+                        ]
                         narratives.extend(obs_for_outcome)
 
         if not narratives:

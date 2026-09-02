@@ -216,12 +216,31 @@ class OutcomeBranch(BaseModel):
     state_transitions: list[StateTransition]
 
 
-class PerActorObservation(BaseModel):
-    """What a specific actor sees, keyed by outcome_id."""
-    actor_id: str
-    observations: dict[str, list[str]] = Field(
-        description="Keyed by outcome_id. Value is list of observation strings."
+class OutcomeObservation(BaseModel):
+    """What one actor learns if a specific outcome is the one that happens."""
+    outcome_id: Literal["critical_success", "success", "partial", "failure", "critical_failure"]
+    notes: list[str] = Field(
+        description="Observation strings this actor receives if this outcome occurs."
     )
+
+
+class PerActorObservation(BaseModel):
+    """What a specific actor sees, one entry per possible outcome.
+
+    This was a `dict[str, list[str]]` keyed by outcome_id. Pydantic renders a
+    free-form dict as an object with `additionalProperties` and no named
+    `properties`, which OpenAI strict structured output rejects outright:
+
+        Invalid schema for response_format 'AdjudicationPacket': 'required' is
+        required to be supplied and to be an array including every key in
+        properties. Extra required key 'observations' supplied.
+
+    Every GM call was therefore failing its native-schema attempt and silently
+    falling back to the slower instructor path. A list of typed entries
+    generates a schema strict mode accepts.
+    """
+    actor_id: str
+    observations: list[OutcomeObservation]
 
 
 class AdjudicationPacket(BaseModel):
