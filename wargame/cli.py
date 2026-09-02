@@ -24,6 +24,7 @@ from llm_client import call_llm_structured
 
 from wargame.ai_opponent import build_ai_opponent_messages
 from wargame.engine import (
+    get_recent_turn_history,
     advance_turn,
     apply_action_transitions,
     generate_action_id,
@@ -292,6 +293,7 @@ def adjudicate_action(
         actor_ids=list(valid_actor_ids),
         variable_ids=list(valid_var_ids),
         mechanical_deltas=mechanical_deltas,
+        turn_history=get_recent_turn_history(conn, turn_number),
     )
 
     packet, _ = call_llm_structured(

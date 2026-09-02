@@ -174,6 +174,29 @@ def compute_mechanical_base_rate(
     return defaults.get(action.action_category, defaults["diplomatic"])
 
 
+def format_turn_history(history: list[dict], max_narrative_chars: int = 220) -> str:
+    """Render prior turns for the GM prompt, oldest first."""
+    if not history:
+        return "This is the first turn. Nothing has happened yet."
+
+    lines: list[str] = []
+    current_turn = None
+    for entry in history:
+        if entry["turn"] != current_turn:
+            current_turn = entry["turn"]
+            lines.append(f"\nTurn {current_turn}:")
+        instruments = ", ".join(entry["instruments"]) or "none"
+        lines.append(
+            f"  {entry['actor_id']} [{entry['category']}; {instruments}] -> "
+            f"{entry['outcome'].upper()}"
+        )
+        if entry["intent"]:
+            lines.append(f"    intent: {entry['intent'][:max_narrative_chars]}")
+        if entry["narrative"]:
+            lines.append(f"    result: {entry['narrative'][:max_narrative_chars]}")
+    return "\n".join(lines).strip()
+
+
 def build_gm_messages(
     action: ActionIntent,
     state: dict[str, float],
@@ -182,6 +205,7 @@ def build_gm_messages(
     actor_ids: list[str],
     variable_ids: list[str],
     mechanical_deltas: dict[str, float] | None = None,
+    turn_history: list[dict] | None = None,
 ) -> list[dict[str, str]]:
     """Build the GM system + user messages for adjudication.
 
@@ -218,7 +242,8 @@ RULES:
 6. Explain your reasoning BEFORE deciding probabilities.
 7. For each outcome, describe what happens in 2-3 sentences.
 8. For observability, specify what EACH actor sees for EACH possible outcome.
-9. The acting actor should generally know they attempted the action. The target actor should see effects proportional to the outcome's observability.
+9. You are given what has already happened in this game. Use it. An overture that has already been refused twice is not the same action the third time; an actor that has just been humiliated responds differently; credibility spent earlier is not available now. Judge this action as the next move in a sequence, not in isolation.
+10. The acting actor should generally know they attempted the action. The target actor should see effects proportional to the outcome's observability.
 
 You must output EXACTLY 5 outcomes: critical_success, success, partial, failure, critical_failure.
 
@@ -232,6 +257,9 @@ Instruments: {', '.join(action.instruments_used)}
 Targets: {', '.join(action.target_entities)}
 Intended effect: {action.intended_effect}
 Ambiguity flags: {', '.join(action.ambiguity_flags) if action.ambiguity_flags else 'none'}
+
+## What Has Already Happened In This Game
+{format_turn_history(turn_history or [])}
 
 ## Current State
 {state_text}

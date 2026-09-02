@@ -415,3 +415,43 @@ def apply_action_transitions(
 def generate_action_id() -> str:
     """Generate a unique action ID (engine-assigned, not LLM-generated)."""
     return f"act_{uuid.uuid4().hex[:8]}"
+
+
+def get_recent_turn_history(
+    conn: sqlite3.Connection,
+    current_turn: int,
+    max_turns: int = 4,
+) -> list[dict]:
+    """Return what actually happened in the turns before this one, oldest first.
+
+    The GM was previously adjudicating each action with no knowledge that any
+    earlier turn had occurred, so it could not see an escalation ladder being
+    climbed, a repeated overture being refused, or credibility being spent.
+    Reading a sequence is most of what expertise in this domain consists of.
+    """
+    rows = conn.execute(
+        "SELECT turn_number, actor_id, action_intent, adjudication_packet, realized_outcome_id "
+        "FROM action_log WHERE turn_number >= ? AND turn_number < ? "
+        "ORDER BY turn_number, rowid",
+        (max(0, current_turn - max_turns), current_turn),
+    ).fetchall()
+
+    history = []
+    for turn, actor_id, intent_json, packet_json, outcome_id in rows:
+        intent = json.loads(intent_json)
+        packet = json.loads(packet_json)
+        narrative = ""
+        for branch in packet.get("possible_outcomes", []):
+            if branch.get("outcome_id") == outcome_id:
+                narrative = branch.get("narrative", "")
+                break
+        history.append({
+            "turn": turn,
+            "actor_id": actor_id,
+            "category": intent.get("action_category", ""),
+            "instruments": intent.get("instruments_used", []),
+            "intent": intent.get("intended_effect", ""),
+            "outcome": outcome_id,
+            "narrative": narrative,
+        })
+    return history
