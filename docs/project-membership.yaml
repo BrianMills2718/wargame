@@ -1,4 +1,4 @@
-schema_version: 1.0.0
+schema_version: 1.1.0
 project_id: project-wargame
 display_name: Wargame
 context_epoch: 1
@@ -14,3 +14,6 @@ repositories:
       - ROADMAP.md
       - claude_code_planning/PLAN.md
     contract_seams: []
+wiki:
+  repository_id: wargame
+  path: wiki/index.md
