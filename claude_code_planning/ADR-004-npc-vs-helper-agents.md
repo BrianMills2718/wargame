@@ -1,3 +1,8 @@
+---
+plan_id: "wargame#adr-004-npc-vs-helper-agents"
+dependencies: []
+dependencies_reviewed: "2026-09-15"
+---
 # ADR-004: In-Game NPCs vs Out-of-Game Helper Agent
 
 **Date:** 2026-03-25

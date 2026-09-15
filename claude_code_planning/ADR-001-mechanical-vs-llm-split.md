@@ -1,3 +1,8 @@
+---
+plan_id: "wargame#adr-001-mechanical-vs-llm-split"
+dependencies: []
+dependencies_reviewed: "2026-09-15"
+---
 # ADR-001: Mechanical Engine vs LLM Judgment Split
 
 **Date:** 2026-03-25

@@ -1,3 +1,8 @@
+---
+plan_id: "wargame#adr-003-dynamic-agent-population"
+dependencies: []
+dependencies_reviewed: "2026-09-15"
+---
 # ADR-003: Dynamic Agent Population Architecture
 
 **Date:** 2026-03-25

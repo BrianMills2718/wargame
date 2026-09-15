@@ -1,3 +1,8 @@
+---
+plan_id: "wargame#plan"
+dependencies: []
+dependencies_reviewed: "2026-09-15"
+---
 # Geopolitical Wargame: Full Vision Plan
 
 **Date:** 2026-03-25

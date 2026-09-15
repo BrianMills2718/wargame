@@ -1,3 +1,8 @@
+---
+plan_id: "wargame#adr-002-additive-layers-not-competing-engines"
+dependencies: []
+dependencies_reviewed: "2026-09-15"
+---
 # ADR-002: Additive Layers, Not Competing Engines
 
 **Date:** 2026-03-25
