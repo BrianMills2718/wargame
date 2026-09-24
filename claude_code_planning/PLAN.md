@@ -419,7 +419,7 @@ class PerActorObservation(BaseModel):
 class AdjudicationPacket(BaseModel):
     """GM's assessment of an action. Probabilities must sum to 1.0."""
     # NOTE: action_id intentionally excluded — assigned by engine post-generation,
-    # not by LLM (per CLAUDE.md structured output ID guidelines)
+    # not by LLM (per AGENTS.md structured output ID guidelines)
     reasoning: str = Field(description="GM's chain-of-thought: what models/state informed this assessment")
     possible_outcomes: list[OutcomeBranch]
     observability: list[PerActorObservation]
@@ -642,7 +642,7 @@ CREATE TABLE state_history (
 
 ```
 ~/projects/wargame_20260325/
-├── CLAUDE.md                    # Project-specific instructions
+├── AGENTS.md                    # Project-specific instructions
 ├── pyproject.toml               # Dependencies: llm_client, agentic_scaffolding, pyyaml, pydantic
 ├── wargame/
 │   ├── __init__.py
@@ -681,9 +681,9 @@ CREATE TABLE state_history (
 | LLM for Parser | `gemini/gemini-2.5-flash-lite` | Simple task, minimize cost. |
 | LLM for Sub-agents | `gemini/gemini-2.5-flash` | Needs to reason about state, but not as heavy as GM. |
 | LLM for Scorer | `claude-sonnet-4-6` | Highest-quality reasoning needed for nuanced evaluation. |
-| Prompt templates | YAML/Jinja2 via `llm_client.render_prompt()` | Per CLAUDE.md: no f-string prompts. |
-| Structured output | `call_llm_structured()` with Pydantic → `json_schema` response format | Per CLAUDE.md: always json_schema, never json_object. |
-| IDs | Engine-generated UUIDs, excluded from LLM schemas | Per CLAUDE.md: system-assigned IDs excluded from LLM schema. |
+| Prompt templates | YAML/Jinja2 via `llm_client.render_prompt()` | Per AGENTS.md: no f-string prompts. |
+| Structured output | `call_llm_structured()` with Pydantic → `json_schema` response format | Per AGENTS.md: always json_schema, never json_object. |
+| IDs | Engine-generated UUIDs, excluded from LLM schemas | Per AGENTS.md: system-assigned IDs excluded from LLM schema. |
 | Turn structure | Simultaneous submission | More realistic than sequential. Both players submit, then all actions resolve. |
 | Resource economy | Budget points per MIDFIELD domain per turn | Simple, creates meaningful tradeoffs. |
 | Variable creation | Forbidden in v1 | Pre-defined pool only. Prevents ontological drift. |
