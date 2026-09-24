@@ -14,7 +14,7 @@ LLM-driven geopolitical wargame prototype with a programmatic physics core, natu
 
 ## Read next
 
-- [Operating rules](../CLAUDE.md)
+- [Operating rules](../AGENTS.md)
 
 ## Coverage and unknowns
 

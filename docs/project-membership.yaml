@@ -10,7 +10,7 @@ repositories:
     role: primary
     workspace: default
     authority_entrypoints:
-      - CLAUDE.md
+      - AGENTS.md
       - ROADMAP.md
       - claude_code_planning/PLAN.md
     contract_seams: []
