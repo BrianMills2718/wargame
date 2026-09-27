@@ -155,16 +155,25 @@ def generate_observations(
             ).fetchall()
             for outcome_id, packet_json in rows:
                 pkt = json.loads(packet_json)
-                for obs_entry in pkt.get("observability", []):
-                    if obs_entry.get("actor_id") == actor_id:
-                        narratives.extend(
-                            note
-                            for entry in obs_entry.get("observations", [])
-                            if entry.get("outcome_id") == outcome_id
-                            for note in entry.get("notes", [])
-                        )
+                entries = [o for o in pkt["observability"] if o["actor_id"] == actor_id]
+                if len(entries) != 1:
+                    # Validation rejects such packets before they are logged;
+                    # reaching here means a logged packet bypassed it. Never
+                    # stand in "nothing observed" for an unknown observation.
+                    raise ValueError(
+                        f"Logged adjudication for {action.actor_id} turn {turn_number} has "
+                        f"{len(entries)} observability entries for {actor_id}; expected exactly 1"
+                    )
+                narratives.extend(
+                    note
+                    for entry in entries[0]["observations"]
+                    if entry["outcome_id"] == outcome_id
+                    for note in entry["notes"]
+                )
 
         if not narratives:
+            # Every logged packet covered this actor and none of its realized
+            # outcomes gave it a note: the GM said it sees nothing.
             narratives = ["No significant developments observed this turn."]
 
         packets[actor_id] = generate_observation_packet(conn, actor_id, turn_number, narratives, quality)

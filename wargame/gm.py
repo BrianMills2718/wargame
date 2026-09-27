@@ -303,9 +303,18 @@ def adjudication_structure_issues(
             if t.var_id not in valid_var_ids:
                 issues.append(f"Unknown var_id: {t.var_id}")
 
-    for obs in packet.observability:
-        if obs.actor_id not in valid_actor_ids:
-            issues.append(f"Unknown actor_id in observability: {obs.actor_id}")
+    observed = [obs.actor_id for obs in packet.observability]
+    for actor_id in observed:
+        if actor_id not in valid_actor_ids:
+            issues.append(f"Unknown actor_id in observability: {actor_id}")
+    # Every scenario actor gets exactly one entry: an omitted actor used to be
+    # told "nothing observed" whatever happened; a duplicate doubles its notes.
+    missing_actors = valid_actor_ids - set(observed)
+    if missing_actors:
+        issues.append(f"Observability omits scenario actors: {sorted(missing_actors)}")
+    duplicated = sorted({a for a in observed if observed.count(a) > 1})
+    if duplicated:
+        issues.append(f"Observability lists actors more than once: {duplicated}")
 
     outcome_ids = {o.outcome_id for o in packet.possible_outcomes}
     required = {"critical_success", "success", "partial", "failure", "critical_failure"}

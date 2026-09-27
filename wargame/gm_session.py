@@ -130,13 +130,7 @@ class GMSession:
                     max_budget=self.max_budget,
                     **self.call_defaults,
                 )
-                seen = {o.actor_id for o in packet.observability}
                 problems = adjudication_structure_issues(packet, valid_var_ids, expected)
-                if seen != expected:
-                    problems.append(
-                        f"GM observability must cover exactly the scenario actors {sorted(expected)}; "
-                        f"it covered {sorted(seen)}"
-                    )
                 if not problems:
                     break
             else:
