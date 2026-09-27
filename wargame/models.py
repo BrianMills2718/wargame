@@ -10,6 +10,9 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
+# The five outcome rungs every AdjudicationPacket must contain exactly once.
+OUTCOME_IDS = ("critical_success", "success", "partial", "failure", "critical_failure")
+
 
 # ---------------------------------------------------------------------------
 # Scenario configuration (loaded from YAML, immutable during game)
@@ -255,6 +258,20 @@ class AdjudicationPacket(BaseModel):
         total = sum(o.probability for o in self.possible_outcomes)
         if abs(total - 1.0) > 0.05:
             raise ValueError(f"Probabilities sum to {total:.4f}, must be within 0.05 of 1.0")
+        return self
+
+    @model_validator(mode="after")
+    def check_outcome_ladder(self) -> "AdjudicationPacket":
+        """Require each of the five outcome rungs exactly once.
+
+        The resolver and the base-rate clamp key probabilities by outcome_id, so a
+        duplicate rung silently distorts the distribution (it can sum past 1.0).
+        """
+        ids = sorted(o.outcome_id for o in self.possible_outcomes)
+        if ids != sorted(OUTCOME_IDS):
+            raise ValueError(
+                f"possible_outcomes must contain each of {sorted(OUTCOME_IDS)} exactly once, got {ids}"
+            )
         return self
 
 

@@ -6,6 +6,7 @@ base rates.
 """
 
 import pytest
+from pydantic import ValidationError
 from wargame.gm import (
     MAX_TOTAL_SHIFT,
     apply_state_shift,
@@ -436,3 +437,41 @@ class TestClampingAndValidation:
                 f"{outcome_id}: clamp moved a compliant outcome from "
                 f"{probability} to {after[outcome_id]}"
             )
+
+
+class TestOutcomeLadderShape:
+    """An AdjudicationPacket must carry each of the five outcome rungs exactly once.
+
+    A duplicate rung used to pass validation (only the ID *set* was checked);
+    clamp_to_base_rates then collapsed duplicates into one probability entry and
+    wrote it back to both, so the distribution handed to resolve_action could sum
+    past 1.0 and the second copy's transitions could never be chosen.
+    """
+
+    LADDER = {"critical_success": 0.10, "success": 0.20, "partial": 0.30,
+              "failure": 0.25, "critical_failure": 0.15}
+
+    def _branches(self, items):
+        return [OutcomeBranch(outcome_id=k, narrative="n", probability=p, state_transitions=[])
+                for k, p in items]
+
+    def test_duplicate_outcome_rejected(self):
+        # Sums to 1.0, contains all five IDs, plus a second "success".
+        items = [("critical_success", 0.05), ("success", 0.15), ("success", 0.15),
+                 ("partial", 0.30), ("failure", 0.25), ("critical_failure", 0.10)]
+        with pytest.raises(ValidationError, match="exactly once"):
+            AdjudicationPacket(reasoning="r", possible_outcomes=self._branches(items),
+                               observability=[])
+
+    def test_missing_outcome_rejected(self):
+        items = [("success", 0.40), ("partial", 0.30), ("failure", 0.20),
+                 ("critical_failure", 0.10)]
+        with pytest.raises(ValidationError, match="exactly once"):
+            AdjudicationPacket(reasoning="r", possible_outcomes=self._branches(items),
+                               observability=[])
+
+    def test_five_unique_in_any_order_accepted(self):
+        items = list(reversed(self.LADDER.items()))
+        packet = AdjudicationPacket(reasoning="r", possible_outcomes=self._branches(items),
+                                    observability=[])
+        assert sorted(o.outcome_id for o in packet.possible_outcomes) == sorted(self.LADDER)
