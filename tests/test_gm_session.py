@@ -11,9 +11,12 @@ import pytest
 
 from wargame.gm_session import GMSession
 from wargame.models import (
+    OUTCOME_IDS,
     ActionIntent,
     AdjudicationPacket,
     OutcomeBranch,
+    OutcomeObservation,
+    PerActorObservation,
 )
 from wargame.scenario import load_scenario
 
@@ -21,14 +24,26 @@ BASE = {"critical_success": 0.05, "success": 0.20, "partial": 0.40,
         "failure": 0.25, "critical_failure": 0.10}
 
 
-def _packet(note="n"):
+ACTORS = ("actor_us", "actor_iran")
+
+
+def _observability(actors=ACTORS):
+    return [
+        PerActorObservation(actor_id=a, observations=[
+            OutcomeObservation(outcome_id=o, notes=[f"{a} sees {o}"]) for o in OUTCOME_IDS
+        ])
+        for a in actors
+    ]
+
+
+def _packet(note="n", actors=ACTORS):
     return AdjudicationPacket(
         reasoning=note,
         possible_outcomes=[
             OutcomeBranch(outcome_id=k, narrative=note, probability=v, state_transitions=[])
             for k, v in BASE.items()
         ],
-        observability=[],
+        observability=_observability(actors),
     )
 
 
@@ -151,3 +166,59 @@ class TestBounding:
         for turn in range(1, 6):
             s.adjudicate(_action(), spec.initial_state, [], BASE, turn_number=turn)
         assert len(s.history) == 10
+
+
+class TestObservabilityCoverage:
+    """The GM contract: what EACH actor sees for EACH outcome (audit round 2, #2).
+
+    A packet that drops an actor used to be accepted, and that actor was later
+    told "No significant developments observed this turn." whatever happened.
+    """
+
+    class Scripted:
+        def __init__(self, *packets):
+            self.packets = list(packets)
+            self.calls = 0
+
+        def __call__(self, **kwargs):
+            self.calls += 1
+            return self.packets.pop(0), None
+
+    @pytest.mark.parametrize("actors", [(), ("actor_us",)])
+    def test_packet_missing_an_actor_is_retried(self, spec, actors):
+        rec = self.Scripted(_packet("partial", actors=actors), _packet("full"))
+        s = _session(spec, rec)
+        packet = s.adjudicate(_action(), spec.initial_state, [], BASE, turn_number=1)
+        assert packet.reasoning == "full"
+        assert rec.calls == 2
+        assert [m["role"] for m in s.history] == ["user", "assistant"]
+
+    def test_packet_that_stays_incomplete_is_rejected(self, spec):
+        rec = self.Scripted(*[_packet("partial", actors=("actor_us",)) for _ in range(5)])
+        s = _session(spec, rec)
+        with pytest.raises(ValueError, match="actor_iran"):
+            s.adjudicate(_action(), spec.initial_state, [], BASE, turn_number=1)
+        assert rec.calls == 3
+        assert s.history == [], "a rejected packet must not leave a dangling user turn"
+
+    def test_actor_missing_an_outcome_is_invalid(self):
+        with pytest.raises(ValueError, match="critical_failure"):
+            PerActorObservation(actor_id="actor_us", observations=[
+                OutcomeObservation(outcome_id=o, notes=[]) for o in OUTCOME_IDS[:-1]
+            ])
+
+    def test_duplicate_outcome_for_an_actor_is_invalid(self):
+        with pytest.raises(ValueError):
+            PerActorObservation(actor_id="actor_us", observations=[
+                OutcomeObservation(outcome_id=o, notes=[]) for o in (*OUTCOME_IDS[:-1], "success")
+            ])
+
+    def test_duplicate_actor_is_invalid(self):
+        with pytest.raises(ValueError, match="actor_us"):
+            _packet(actors=("actor_us", "actor_us", "actor_iran"))
+
+    def test_empty_notes_still_mean_saw_nothing(self):
+        """Partial observability is expressed as an empty notes list, not a missing entry."""
+        PerActorObservation(actor_id="actor_us", observations=[
+            OutcomeObservation(outcome_id=o, notes=[]) for o in OUTCOME_IDS
+        ])

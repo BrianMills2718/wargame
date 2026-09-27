@@ -22,7 +22,7 @@ from pathlib import Path
 
 from llm_client import call_llm_structured
 
-from wargame.ai_opponent import build_ai_opponent_messages
+from wargame.ai_opponent import build_ai_opponent_messages, request_valid_ai_action
 from wargame.engine import (
     get_recent_turn_history,
     advance_turn,
@@ -255,20 +255,16 @@ def get_ai_action(
         resource_budget=budget,
     )
 
-    intent, _ = call_llm_structured(
+    return request_valid_ai_action(
+        call_llm_structured,
+        actor,
+        messages,
         model=AI_MODEL,
-        messages=messages,
-        response_model=ActionIntent,
         task="wargame_ai_opponent",
         trace_id=trace_id,
         max_budget=AI_MAX_BUDGET,
         **LLM_CALL_DEFAULTS,
     )
-
-    # Fix actor_id if AI got it wrong
-    intent.actor_id = actor_id
-
-    return intent
 
 
 def adjudicate_action(
@@ -347,6 +343,11 @@ def run_game(
     if num_turns is not None and num_turns < 1:
         raise ValueError(f"num_turns must be a positive integer or None, got {num_turns}")
     spec = load_scenario(scenario_path)
+    if mode != "ai_vs_ai" and play_as not in {a.id for a in spec.actors}:
+        raise ValueError(
+            f"--play-as {play_as!r} is not an actor in this scenario; "
+            f"choose one of {[a.id for a in spec.actors]}"
+        )
     trace_id = f"wargame_{uuid.uuid4().hex[:8]}"
     if db_path is None:
         Path(DEFAULT_DB_DIR).mkdir(parents=True, exist_ok=True)
