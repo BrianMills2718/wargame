@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import uuid
 from pathlib import Path
+from typing import Literal
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
@@ -17,32 +18,19 @@ from llm_client import call_llm_structured
 
 from wargame.ai_opponent import build_ai_opponent_messages, request_valid_ai_action
 from wargame.engine import (
-    get_recent_turn_history,
-    apply_action_transitions,
-    generate_action_id,
     get_all_variables,
     get_state_history,
     record_state_history,
-    resolve_action,
     run_mechanical_phases,
 )
 from wargame.fog import (
-    compute_observation_quality,
-    generate_observation_packet,
     get_actor_state_estimates,
 )
-from wargame.gm import (
-    build_gm_messages,
-    clamp_to_base_rates,
-    compute_mechanical_base_rate,
-    normalize_probabilities,
-    select_relevant_domain_models,
-    validate_adjudication,
-)
 from wargame.gm_session import GMSession
-from wargame.models import ActionIntent, AdjudicationPacket
-from wargame.parser import build_parser_messages
+from wargame.models import ActionIntent
+from wargame.parser import build_parser_messages, validate_action_intent
 from wargame.scenario import init_db, load_scenario
+from wargame.turn import adjudicate_action, generate_observations, turns_remaining
 from wargame.config import (
     gm_call_defaults,
     AI_MAX_BUDGET,
@@ -91,7 +79,9 @@ def _get_actor_name(spec, actor_id):
 class StartGameRequest(BaseModel):
     scenario_path: str = "scenarios/us_iran_2026.yaml"
     play_as: str = "actor_us"
-    mode: str = "human_vs_ai"
+    # human_vs_human is CLI-only (hot-seat at one terminal); the web UI takes one
+    # directive per turn, so it cannot collect a second human's orders.
+    mode: Literal["human_vs_ai", "ai_vs_ai"] = "human_vs_ai"
     db_path: str | None = None
 
 
@@ -194,83 +184,6 @@ def _get_ai_action(conn, spec, actor_id, turn_number, trace_id):
     )
 
 
-def _adjudicate(conn, spec, action, turn, mechanical_deltas, trace_id):
-    """Adjudicate a single action through the GM. Returns (chosen_outcome, packet)."""
-    valid_var_ids = {sv.id for sv in spec.state_variables}
-    valid_actor_ids = {a.id for a in spec.actors}
-
-    state = get_all_variables(conn)
-    dms = select_relevant_domain_models(spec, action)
-    base_rates = compute_mechanical_base_rate(dms, action, state)
-
-    packet = game["gm_session"].adjudicate(
-        action=action, state=state, relevant_domain_models=dms,
-        base_rates=base_rates, turn_number=turn,
-        mechanical_deltas=mechanical_deltas,
-    )
-
-    prob_sum = sum(o.probability for o in packet.possible_outcomes)
-    if abs(prob_sum - 1.0) > 0.001:
-        packet = normalize_probabilities(packet)
-
-    # Anti-god-moding (ADR-001). See the matching block in cli.py.
-    issues = validate_adjudication(packet, valid_var_ids, valid_actor_ids, base_rates)
-    if issues:
-        print(f"GM adjudication outside its band, clamping: {'; '.join(issues)}")
-        packet = clamp_to_base_rates(packet, base_rates)
-
-    outcomes_dicts = [
-        {"outcome_id": o.outcome_id, "probability": o.probability,
-         "state_transitions": [{"var_id": t.var_id, "delta": t.delta} for t in o.state_transitions],
-         "narrative": o.narrative}
-        for o in packet.possible_outcomes
-    ]
-    chosen, rng_roll, seed = resolve_action(conn, outcomes_dicts, turn)
-    apply_action_transitions(conn, chosen["state_transitions"], turn)
-
-    action_id = generate_action_id()
-    conn.execute(
-        "INSERT INTO action_log (action_id, turn_number, actor_id, action_intent, adjudication_packet, realized_outcome_id, rng_roll) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (action_id, turn, action.actor_id, action.model_dump_json(), packet.model_dump_json(), chosen["outcome_id"], rng_roll),
-    )
-
-    return chosen, packet
-
-
-def _generate_observations(conn, spec, turn, turn_actions):
-    """Generate observation packets for all actors."""
-    actor_ids = [a.id for a in spec.actors]
-    observations = {}
-
-    for actor_id in actor_ids:
-        quality = compute_observation_quality(conn, actor_id, turn)
-        narratives = []
-        for _, action in turn_actions:
-            rows = conn.execute(
-                "SELECT realized_outcome_id, adjudication_packet FROM action_log WHERE turn_number=? AND actor_id=?",
-                (turn, action.actor_id),
-            ).fetchall()
-            for outcome_id, packet_json in rows:
-                pkt = json.loads(packet_json)
-                for obs_entry in pkt.get("observability", []):
-                    if obs_entry.get("actor_id") == actor_id:
-                        obs_for_outcome = [
-                            note
-                            for entry in obs_entry.get("observations", [])
-                            if entry.get("outcome_id") == outcome_id
-                            for note in entry.get("notes", [])
-                        ]
-                        narratives.extend(obs_for_outcome)
-
-        if not narratives:
-            narratives = ["No significant developments observed this turn."]
-
-        generate_observation_packet(conn, actor_id, turn, narratives, quality)
-        observations[actor_id] = narratives
-
-    return observations
-
-
 @app.post("/api/command")
 async def submit_command(req: CommandRequest):
     """Submit a command and run a full turn.
@@ -287,20 +200,12 @@ async def submit_command(req: CommandRequest):
     human_actor = game["human_actor"]
     mode = game["mode"]
 
-    # Run mechanical phases
-    mech = run_mechanical_phases(conn)
-    turn = mech.turn_number
+    if turns_remaining(conn, spec.meta.turns) == 0:
+        raise HTTPException(409, f"Game over: all {spec.meta.turns} turns have been played")
 
-    turn_result = {
-        "turn": turn,
-        "mechanical_deltas": {k: round(v, 4) for k, v in mech.all_mechanical_deltas.items() if abs(v) > 0.005},
-        "actions": [],
-        "observations": {},
-    }
-
-    turn_actions = []
-
-    # Human action (if applicable)
+    # Parse and validate the human order before anything touches game state, so
+    # a rejected order does not advance the turn or apply world dynamics.
+    human_intent = None
     if human_actor and mode != "ai_vs_ai":
         actor = _find_actor(spec, human_actor)
         if actor is None:
@@ -316,6 +221,23 @@ async def submit_command(req: CommandRequest):
             **LLM_CALL_DEFAULTS,
         )
         human_intent.actor_id = human_actor
+        issues = validate_action_intent(human_intent, actor)
+        if issues:
+            raise HTTPException(400, f"Invalid order: {'; '.join(issues)}")
+
+    # Run mechanical phases
+    mech = run_mechanical_phases(conn)
+    turn = mech.turn_number
+
+    turn_result = {
+        "turn": turn,
+        "mechanical_deltas": {k: round(v, 4) for k, v in mech.all_mechanical_deltas.items() if abs(v) > 0.005},
+        "actions": [],
+        "observations": {},
+    }
+
+    turn_actions = []
+    if human_intent is not None:
         turn_actions.append((human_actor, human_intent))
         game["action_histories"][human_actor].append(
             f"Turn {turn}: [{human_intent.action_category}] {human_intent.intended_effect[:60]}"
@@ -331,7 +253,9 @@ async def submit_command(req: CommandRequest):
 
     # Adjudicate all actions
     for actor_id, action in turn_actions:
-        chosen, packet = _adjudicate(conn, spec, action, turn, mech.all_mechanical_deltas, trace_id)
+        chosen, packet = adjudicate_action(
+            conn, spec, action, turn, mech.all_mechanical_deltas, game["gm_session"],
+        )
 
         # Build probability table for spectator view
         prob_table = [
@@ -355,7 +279,10 @@ async def submit_command(req: CommandRequest):
         })
 
     # Generate observations
-    turn_result["observations"] = _generate_observations(conn, spec, turn, turn_actions)
+    turn_result["observations"] = {
+        actor_id: packet["observations"]
+        for actor_id, packet in generate_observations(conn, spec, turn, turn_actions).items()
+    }
 
     record_state_history(conn, turn)
     conn.commit()
@@ -367,10 +294,13 @@ async def submit_command(req: CommandRequest):
     history = get_state_history(conn)
     hist_json = {var_id: [{"turn": t, "value": v} for t, v in points] for var_id, points in history.items()}
 
+    remaining = turns_remaining(conn, spec.meta.turns)
     response = {
         "turn_result": turn_result,
         "estimates": estimates,
         "history": hist_json,
+        "turns_remaining": remaining,
+        "game_over": remaining == 0,
     }
 
     # Spectator/god-mode: include canonical state and per-actor estimates

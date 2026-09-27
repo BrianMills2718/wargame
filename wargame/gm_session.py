@@ -20,6 +20,7 @@ from __future__ import annotations
 from typing import Any, Callable
 
 from wargame.gm import (
+    adjudication_structure_issues,
     build_gm_system_prompt,
     build_gm_turn_message,
 )
@@ -31,8 +32,9 @@ from wargame.models import (
 )
 
 
-# A packet that omits an actor's observability is re-requested this many times in
-# total before the adjudication is rejected outright.
+# A packet that omits an actor's observability, or names a state variable or
+# actor the scenario lacks, is re-requested this many times in total before the
+# adjudication is rejected outright.
 MAX_GM_ATTEMPTS = 3
 
 
@@ -105,6 +107,7 @@ class GMSession:
         self.history.append({"role": "user", "content": turn_message})
 
         expected = {a.id for a in self.spec.actors}
+        valid_var_ids = {sv.id for sv in self.spec.state_variables}
         try:
             for _ in range(MAX_GM_ATTEMPTS):
                 packet, _ = self._call(
@@ -117,12 +120,17 @@ class GMSession:
                     **self.call_defaults,
                 )
                 seen = {o.actor_id for o in packet.observability}
-                if seen == expected:
+                problems = adjudication_structure_issues(packet, valid_var_ids, expected)
+                if seen != expected:
+                    problems.append(
+                        f"GM observability must cover exactly the scenario actors {sorted(expected)}; "
+                        f"it covered {sorted(seen)}"
+                    )
+                if not problems:
                     break
             else:
                 raise ValueError(
-                    f"GM observability must cover exactly the scenario actors {sorted(expected)}; "
-                    f"after {MAX_GM_ATTEMPTS} attempts it covered {sorted(seen)}"
+                    f"GM packet still invalid after {MAX_GM_ATTEMPTS} attempts: {'; '.join(problems)}"
                 )
         except Exception:
             # Do not leave a dangling user turn: the next call would send two

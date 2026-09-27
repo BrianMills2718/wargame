@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import random
 import sqlite3
 import sys
 import uuid
@@ -24,27 +23,12 @@ from llm_client import call_llm_structured
 
 from wargame.ai_opponent import build_ai_opponent_messages, request_valid_ai_action
 from wargame.engine import (
-    get_recent_turn_history,
-    advance_turn,
-    apply_action_transitions,
-    generate_action_id,
     get_all_variables,
     record_state_history,
-    resolve_action,
     run_mechanical_phases,
 )
 from wargame.fog import (
-    compute_observation_quality,
-    generate_observation_packet,
     get_actor_state_estimates,
-)
-from wargame.gm import (
-    build_gm_messages,
-    clamp_to_base_rates,
-    compute_mechanical_base_rate,
-    normalize_probabilities,
-    select_relevant_domain_models,
-    validate_adjudication,
 )
 from wargame.advisor import build_advisor_messages
 from wargame.gm_session import GMSession
@@ -68,9 +52,12 @@ from wargame.config import (
     PARSER_MAX_BUDGET,
     PARSER_MODEL,
 )
-from wargame.models import ActionIntent, AdjudicationPacket, ActorScore, AdvisorAnswer, ScenarioSpec
+from wargame.models import ActionIntent, ActorScore, AdvisorAnswer, ScenarioSpec
 from wargame.parser import build_parser_messages, validate_action_intent
 from wargame.scenario import init_db, load_scenario
+from wargame.turn import adjudicate_action, generate_observations
+
+MODES = ("human_vs_ai", "human_vs_human", "ai_vs_ai")
 
 
 def print_banner(text: str, char: str = "=") -> None:
@@ -267,70 +254,6 @@ def get_ai_action(
     )
 
 
-def adjudicate_action(
-    conn: sqlite3.Connection,
-    spec: ScenarioSpec,
-    action: ActionIntent,
-    turn_number: int,
-    mechanical_deltas: dict[str, float],
-    trace_id: str,
-    gm_session: GMSession,
-) -> tuple[dict, AdjudicationPacket]:
-    """Run GM adjudication and resolve an action. Returns (chosen_outcome, packet)."""
-    valid_var_ids = {sv.id for sv in spec.state_variables}
-    valid_actor_ids = {a.id for a in spec.actors}
-
-    state = get_all_variables(conn)
-    dms = select_relevant_domain_models(spec, action)
-    base_rates = compute_mechanical_base_rate(dms, action, state)
-
-    packet = gm_session.adjudicate(
-        action=action,
-        state=state,
-        relevant_domain_models=dms,
-        base_rates=base_rates,
-        turn_number=turn_number,
-        mechanical_deltas=mechanical_deltas,
-    )
-
-    # Normalize
-    prob_sum = sum(o.probability for o in packet.possible_outcomes)
-    if abs(prob_sum - 1.0) > 0.001:
-        packet = normalize_probabilities(packet)
-
-    # Anti-god-moding (ADR-001): the GM may move each outcome at most ±0.15
-    # from the state-conditioned base rate. validate_adjudication could always
-    # detect a violation, but it was never called, so nothing enforced it.
-    issues = validate_adjudication(packet, valid_var_ids, valid_actor_ids, base_rates)
-    if issues:
-        print(f"  ⚠ GM adjudication outside its band, clamping: {'; '.join(issues)}")
-        packet = clamp_to_base_rates(packet, base_rates)
-
-    # Resolve
-    outcomes_dicts = [
-        {
-            "outcome_id": o.outcome_id,
-            "probability": o.probability,
-            "state_transitions": [{"var_id": t.var_id, "delta": t.delta} for t in o.state_transitions],
-            "narrative": o.narrative,
-        }
-        for o in packet.possible_outcomes
-    ]
-    chosen, rng_roll, seed = resolve_action(conn, outcomes_dicts, turn_number)
-
-    # Apply transitions
-    apply_action_transitions(conn, chosen["state_transitions"], turn_number)
-
-    # Log
-    action_id = generate_action_id()
-    conn.execute(
-        "INSERT INTO action_log (action_id, turn_number, actor_id, action_intent, adjudication_packet, realized_outcome_id, rng_roll) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (action_id, turn_number, action.actor_id, action.model_dump_json(), packet.model_dump_json(), chosen["outcome_id"], rng_roll),
-    )
-
-    return chosen, packet
-
-
 def run_game(
     scenario_path: str,
     mode: str = "human_vs_ai",
@@ -342,6 +265,8 @@ def run_game(
     """Run the main game loop."""
     if num_turns is not None and num_turns < 1:
         raise ValueError(f"num_turns must be a positive integer or None, got {num_turns}")
+    if mode not in MODES:
+        raise ValueError(f"mode must be one of {MODES}, got {mode!r}")
     spec = load_scenario(scenario_path)
     if mode != "ai_vs_ai" and play_as not in {a.id for a in spec.actors}:
         raise ValueError(
@@ -434,42 +359,15 @@ def run_game(
             print(f"\n  Adjudicating {actor_name}'s action...")
 
             chosen, packet = adjudicate_action(
-                conn, spec, action, turn, mech.all_mechanical_deltas, trace_id,
-                gm_session=gm_session,
+                conn, spec, action, turn, mech.all_mechanical_deltas, gm_session,
             )
 
             print(f"  Result: {chosen['outcome_id'].upper()}")
             print(f"  {chosen['narrative']}")
 
         # Generate observation packets
-        for actor_id in actor_ids:
-            quality = compute_observation_quality(conn, actor_id, turn)
-
-            # Collect narrative observations from adjudication results
-            # For now, use the realized narrative from each action's outcome
-            narratives = []
-            for _, action in turn_actions:
-                rows = conn.execute(
-                    "SELECT realized_outcome_id, adjudication_packet FROM action_log WHERE turn_number=? AND actor_id=?",
-                    (turn, action.actor_id),
-                ).fetchall()
-                for outcome_id, packet_json in rows:
-                    pkt = json.loads(packet_json)
-                    for obs_entry in pkt.get("observability", []):
-                        if obs_entry.get("actor_id") == actor_id:
-                            obs_for_outcome = [
-                                note
-                                for entry in obs_entry.get("observations", [])
-                                if entry.get("outcome_id") == outcome_id
-                                for note in entry.get("notes", [])
-                            ]
-                            narratives.extend(obs_for_outcome)
-
-            if not narratives:
-                narratives = ["No significant developments observed this turn."]
-
-            obs_packet = generate_observation_packet(conn, actor_id, turn, narratives, quality)
-
+        obs_packets = generate_observations(conn, spec, turn, turn_actions)
+        for actor_id, obs_packet in obs_packets.items():
             is_human = (actor_id == human_actor)
             if is_human or mode == "ai_vs_ai":
                 actor_name = next(a.name for a in spec.actors if a.id == actor_id)
@@ -539,7 +437,7 @@ def main() -> None:
     """Entry point for the CLI."""
     parser = argparse.ArgumentParser(description="Geopolitical Wargame CLI")
     parser.add_argument("scenario", type=str, help="Path to scenario YAML file")
-    parser.add_argument("--mode", choices=["human_vs_ai", "human_vs_human", "ai_vs_ai"], default="human_vs_ai")
+    parser.add_argument("--mode", choices=MODES, default="human_vs_ai")
     parser.add_argument("--play-as", type=str, default="actor_us", help="Actor ID to play as (human_vs_ai mode)")
     parser.add_argument("--turns", type=int, default=None, help="Override number of turns")
     parser.add_argument("--gm-model", type=str, default=None, help="Override the GM route (e.g. claude-code/haiku for free but slow)")

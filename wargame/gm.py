@@ -287,6 +287,54 @@ Generate the AdjudicationPacket."""
     ]
 
 
+def adjudication_structure_issues(
+    packet: AdjudicationPacket,
+    valid_var_ids: set[str],
+    valid_actor_ids: set[str],
+) -> list[str]:
+    """Defects no repair can fix: the packet names things the scenario lacks.
+
+    Such a packet must be re-requested or rejected, never applied. Contrast
+    `adjudication_band_issues`, which clamping repairs.
+    """
+    issues = []
+    for outcome in packet.possible_outcomes:
+        for t in outcome.state_transitions:
+            if t.var_id not in valid_var_ids:
+                issues.append(f"Unknown var_id: {t.var_id}")
+
+    for obs in packet.observability:
+        if obs.actor_id not in valid_actor_ids:
+            issues.append(f"Unknown actor_id in observability: {obs.actor_id}")
+
+    outcome_ids = {o.outcome_id for o in packet.possible_outcomes}
+    required = {"critical_success", "success", "partial", "failure", "critical_failure"}
+    missing = required - outcome_ids
+    if missing:
+        issues.append(f"Missing outcome_ids: {missing}")
+    return issues
+
+
+def adjudication_band_issues(
+    packet: AdjudicationPacket,
+    base_rates: dict[str, float],
+    tolerance: float = 0.15,
+) -> list[str]:
+    """Outcomes whose probability strays more than ±tolerance from the base rate
+    (ADR-001 anti-god-moding). Repairable by `clamp_to_base_rates`."""
+    issues = []
+    for outcome in packet.possible_outcomes:
+        base = base_rates.get(outcome.outcome_id)
+        if base is not None:
+            deviation = abs(outcome.probability - base)
+            if deviation > tolerance:
+                issues.append(
+                    f"God-moding: {outcome.outcome_id} probability {outcome.probability:.2f} "
+                    f"deviates {deviation:.2f} from base rate {base:.2f} (max ±{tolerance})"
+                )
+    return issues
+
+
 def validate_adjudication(
     packet: AdjudicationPacket,
     valid_var_ids: set[str],
@@ -294,44 +342,19 @@ def validate_adjudication(
     base_rates: dict[str, float],
     tolerance: float = 0.15,
 ) -> list[str]:
-    """Validate an AdjudicationPacket. Returns list of issues (empty = valid)."""
-    issues = []
+    """Validate an AdjudicationPacket. Returns list of issues (empty = valid).
 
-    # Check probabilities sum to 1.0
+    Mixes repairable and unrepairable issues; callers deciding what to do with a
+    packet should use `adjudication_structure_issues` and
+    `adjudication_band_issues` separately.
+    """
+    issues = []
     prob_sum = sum(o.probability for o in packet.possible_outcomes)
     if abs(prob_sum - 1.0) > 0.02:
         issues.append(f"Probabilities sum to {prob_sum:.4f}, not 1.0")
-
-    # Check all var_ids are valid
-    for outcome in packet.possible_outcomes:
-        for t in outcome.state_transitions:
-            if t.var_id not in valid_var_ids:
-                issues.append(f"Unknown var_id: {t.var_id}")
-
-    # Check all actor_ids in observability are valid
-    for obs in packet.observability:
-        if obs.actor_id not in valid_actor_ids:
-            issues.append(f"Unknown actor_id in observability: {obs.actor_id}")
-
-    # Check for required outcome_ids
-    outcome_ids = {o.outcome_id for o in packet.possible_outcomes}
-    required = {"critical_success", "success", "partial", "failure", "critical_failure"}
-    missing = required - outcome_ids
-    if missing:
-        issues.append(f"Missing outcome_ids: {missing}")
-
-    # Check ±tolerance deviation from base rates (anti-god-moding)
+    issues.extend(adjudication_structure_issues(packet, valid_var_ids, valid_actor_ids))
     if base_rates:
-        for outcome in packet.possible_outcomes:
-            base = base_rates.get(outcome.outcome_id)
-            if base is not None:
-                deviation = abs(outcome.probability - base)
-                if deviation > tolerance:
-                    issues.append(
-                        f"God-moding: {outcome.outcome_id} probability {outcome.probability:.2f} "
-                        f"deviates {deviation:.2f} from base rate {base:.2f} (max ±{tolerance})"
-                    )
-
+        issues.extend(adjudication_band_issues(packet, base_rates, tolerance))
     return issues
 
 
