@@ -15,7 +15,7 @@ from pydantic import BaseModel
 
 from llm_client import call_llm_structured
 
-from wargame.ai_opponent import build_ai_opponent_messages
+from wargame.ai_opponent import build_ai_opponent_messages, request_valid_ai_action
 from wargame.engine import (
     get_recent_turn_history,
     apply_action_transitions,
@@ -109,6 +109,8 @@ async def index():
 async def start_game(req: StartGameRequest):
     """Initialize a new game."""
     spec = load_scenario(req.scenario_path)
+    if req.mode != "ai_vs_ai" and _find_actor(spec, req.play_as) is None:
+        raise HTTPException(400, f"Unknown actor: {req.play_as}")
     trace_id = f"wargame_{uuid.uuid4().hex[:8]}"
     db_path = req.db_path
     if db_path is None:
@@ -185,13 +187,11 @@ def _get_ai_action(conn, spec, actor_id, turn_number, trace_id):
         action_history=game["action_histories"].get(actor_id, []),
         turn_number=turn_number, resource_budget=budget,
     )
-    intent, _ = call_llm_structured(
-        model=AI_MODEL, messages=messages, response_model=ActionIntent,
-        task="wargame_ai_opponent", trace_id=trace_id, max_budget=AI_MAX_BUDGET,
-        **LLM_CALL_DEFAULTS,
+    return request_valid_ai_action(
+        call_llm_structured, actor, messages,
+        model=AI_MODEL, task="wargame_ai_opponent", trace_id=trace_id,
+        max_budget=AI_MAX_BUDGET, **LLM_CALL_DEFAULTS,
     )
-    intent.actor_id = actor_id
-    return intent
 
 
 def _adjudicate(conn, spec, action, turn, mechanical_deltas, trace_id):

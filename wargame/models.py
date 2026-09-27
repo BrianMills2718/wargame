@@ -245,6 +245,20 @@ class PerActorObservation(BaseModel):
     actor_id: str
     observations: list[OutcomeObservation]
 
+    @model_validator(mode="after")
+    def check_every_outcome_once(self) -> "PerActorObservation":
+        """The GM contract is what EACH actor sees for EACH outcome.
+
+        An actor who would see nothing gets an empty notes list; a missing
+        entry used to be read as "nothing happened" regardless of the outcome.
+        """
+        ids = sorted(o.outcome_id for o in self.observations)
+        if ids != sorted(OUTCOME_IDS):
+            raise ValueError(
+                f"observations for {self.actor_id} must contain each of {sorted(OUTCOME_IDS)} exactly once, got {ids}"
+            )
+        return self
+
 
 class AdjudicationPacket(BaseModel):
     """GM's assessment of an action. Probabilities must sum to 1.0."""
@@ -272,6 +286,15 @@ class AdjudicationPacket(BaseModel):
             raise ValueError(
                 f"possible_outcomes must contain each of {sorted(OUTCOME_IDS)} exactly once, got {ids}"
             )
+        return self
+
+    @model_validator(mode="after")
+    def check_unique_observers(self) -> "AdjudicationPacket":
+        """One observability entry per actor; which actors is checked against the scenario by GMSession."""
+        ids = [o.actor_id for o in self.observability]
+        dupes = sorted({a for a in ids if ids.count(a) > 1})
+        if dupes:
+            raise ValueError(f"observability lists these actors more than once: {dupes}")
         return self
 
 

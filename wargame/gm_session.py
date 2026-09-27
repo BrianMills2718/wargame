@@ -31,6 +31,11 @@ from wargame.models import (
 )
 
 
+# A packet that omits an actor's observability is re-requested this many times in
+# total before the adjudication is rejected outright.
+MAX_GM_ATTEMPTS = 3
+
+
 class GMSession:
     """A stateful GM. Create one per game; call adjudicate() once per action."""
 
@@ -99,16 +104,26 @@ class GMSession:
         )
         self.history.append({"role": "user", "content": turn_message})
 
+        expected = {a.id for a in self.spec.actors}
         try:
-            packet, _ = self._call(
-                model=self.model,
-                messages=self.messages(),
-                response_model=AdjudicationPacket,
-                task="wargame_gm_adjudication",
-                trace_id=self.trace_id,
-                max_budget=self.max_budget,
-                **self.call_defaults,
-            )
+            for _ in range(MAX_GM_ATTEMPTS):
+                packet, _ = self._call(
+                    model=self.model,
+                    messages=self.messages(),
+                    response_model=AdjudicationPacket,
+                    task="wargame_gm_adjudication",
+                    trace_id=self.trace_id,
+                    max_budget=self.max_budget,
+                    **self.call_defaults,
+                )
+                seen = {o.actor_id for o in packet.observability}
+                if seen == expected:
+                    break
+            else:
+                raise ValueError(
+                    f"GM observability must cover exactly the scenario actors {sorted(expected)}; "
+                    f"after {MAX_GM_ATTEMPTS} attempts it covered {sorted(seen)}"
+                )
         except Exception:
             # Do not leave a dangling user turn: the next call would send two
             # user messages in a row and the conversation would misalign.
