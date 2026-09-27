@@ -344,6 +344,8 @@ def run_game(
     gm_model: str | None = None,
 ) -> None:
     """Run the main game loop."""
+    if num_turns is not None and num_turns < 1:
+        raise ValueError(f"num_turns must be a positive integer or None, got {num_turns}")
     spec = load_scenario(scenario_path)
     trace_id = f"wargame_{uuid.uuid4().hex[:8]}"
     if db_path is None:
@@ -356,7 +358,7 @@ def run_game(
         spec=spec, model=resolved_gm_model, max_budget=GM_MAX_BUDGET,
         trace_id=trace_id, call_defaults=gm_call_defaults(resolved_gm_model),
     )
-    total_turns = num_turns or spec.meta.turns
+    total_turns = spec.meta.turns if num_turns is None else num_turns
     actor_ids = [a.id for a in spec.actors]
 
     human_actor = play_as if mode != "ai_vs_ai" else None
@@ -542,6 +544,8 @@ def main() -> None:
     parser.add_argument("--gm-model", type=str, default=None, help="Override the GM route (e.g. claude-code/haiku for free but slow)")
     parser.add_argument("--db", type=str, default=None, help="Path to the game database file (default: games/<trace_id>.sqlite)")
     args = parser.parse_args()
+    if args.turns is not None and args.turns < 1:
+        parser.error(f"--turns must be a positive integer, got {args.turns}")
 
     run_game(
         scenario_path=args.scenario,
