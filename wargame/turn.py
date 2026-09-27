@@ -10,7 +10,8 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from typing import Callable
+from contextlib import contextmanager
+from typing import Callable, Iterator
 
 from wargame.engine import (
     apply_action_transitions,
@@ -29,6 +30,39 @@ from wargame.gm import (
     select_relevant_domain_models,
 )
 from wargame.models import ActionIntent, AdjudicationPacket, ScenarioSpec
+
+
+@contextmanager
+def atomic_turn(
+    conn: sqlite3.Connection,
+    gm_session,
+    action_histories: dict[str, list[str]],
+) -> Iterator[None]:
+    """Run one turn as a single unit: all of it lands, or none of it does.
+
+    Everything a turn writes (mechanical phases, every action's transitions and
+    log rows, observations) shares one SQLite transaction, committed only when
+    the body finishes. Any exception rolls the database back and also rewinds
+    the in-memory state the turn touched (the GM conversation and the actors'
+    action histories), so a failed turn leaves the game exactly as it was and
+    can simply be replayed. The engine functions do not commit on their own.
+    """
+    if conn.in_transaction:
+        raise RuntimeError(
+            "a turn must start with no uncommitted writes; they would be committed "
+            "or rolled back along with a turn they are not part of"
+        )
+    gm_checkpoint = gm_session.checkpoint()
+    histories = {actor_id: list(h) for actor_id, h in action_histories.items()}
+    try:
+        yield
+        conn.commit()
+    except BaseException:
+        conn.rollback()
+        gm_session.restore(gm_checkpoint)
+        action_histories.clear()
+        action_histories.update(histories)
+        raise
 
 
 def turns_remaining(conn: sqlite3.Connection, total_turns: int) -> int:
