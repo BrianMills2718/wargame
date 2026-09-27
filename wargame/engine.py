@@ -304,6 +304,9 @@ def run_mechanical_phases(conn: sqlite3.Connection) -> TurnPhaseResult:
     3. Apply pending lagged effects
 
     Returns a TurnPhaseResult with all deltas applied.
+
+    Does not commit: the turn is one transaction owned by the caller
+    (`wargame.turn.atomic_turn`), so a later failure undoes these phases too.
     """
     turn = advance_turn(conn)
 
@@ -329,8 +332,6 @@ def run_mechanical_phases(conn: sqlite3.Connection) -> TurnPhaseResult:
 
     # Record state snapshot
     record_state_history(conn, turn)
-
-    conn.commit()
 
     return TurnPhaseResult(
         turn_number=turn,
@@ -405,9 +406,8 @@ def apply_action_transitions(
         for k, v in cascaded.items():
             direct_deltas[k] = direct_deltas.get(k, 0.0) + v
 
-    # Record updated state
+    # Record updated state. No commit: the caller's turn transaction owns it.
     record_state_history(conn, turn_number)
-    conn.commit()
 
     return direct_deltas
 

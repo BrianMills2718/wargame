@@ -1,12 +1,13 @@
 """Parser pipeline — converts natural language player directives into ActionIntents.
 
 Uses llm_client.call_llm_structured() with the ActionIntent Pydantic model.
-Validates that instruments exist in the actor's inventory.
+Validates that instruments exist in the actor's inventory and that the
+action's resource cost fits the actor's budget.
 """
 
 from __future__ import annotations
 
-from wargame.models import ActionIntent, ActorSpec
+from wargame.models import ActionIntent, ActorSpec, ResourceBudgetSpec
 
 
 def build_parser_messages(
@@ -62,10 +63,19 @@ Parse this into an ActionIntent."""
 def validate_action_intent(
     intent: ActionIntent,
     actor: ActorSpec,
+    budget: ResourceBudgetSpec,
 ) -> list[str]:
-    """Validate that the ActionIntent references valid instruments.
+    """Check an action against what its actor owns and can afford.
 
-    Returns list of issues (empty = valid).
+    Returns list of issues (empty = valid). Human orders and AI actions both
+    pass through here before anything is adjudicated.
+
+    Budget rule (ADR-001: "Actions rejected if insufficient budget in the
+    relevant domain"): the cost may not exceed the actor's per-turn budget, and
+    when the action uses instruments it may not exceed the combined budget of
+    the MIDFIELD domains those instruments draw on. Each actor takes one action
+    per turn and nothing else in a turn spends budget, so the scenario's
+    per-turn allocation is the amount available.
     """
     issues = []
 
@@ -74,9 +84,24 @@ def validate_action_intent(
         issues.append(f"actor_id mismatch: got {intent.actor_id}, expected {actor.id}")
 
     # Check instruments exist in actor's inventory
-    valid_inst_ids = {inst.id for inst in actor.instruments}
+    owned = {inst.id: inst for inst in actor.instruments}
     for inst_id in intent.instruments_used:
-        if inst_id not in valid_inst_ids:
+        if inst_id not in owned:
             issues.append(f"Actor {actor.id} does not possess instrument: {inst_id}")
+
+    if intent.resource_cost > budget.per_turn:
+        issues.append(
+            f"resource_cost {intent.resource_cost} exceeds {actor.id}'s per-turn budget of {budget.per_turn}"
+        )
+    used = [owned[i] for i in intent.instruments_used if i in owned]
+    if used:
+        domains = sorted({d for inst in used for d in inst.midfield if d in budget.domains})
+        available = sum(budget.domains[d] for d in domains)
+        if intent.resource_cost > available:
+            issues.append(
+                f"resource_cost {intent.resource_cost} exceeds the budget of the domains its "
+                f"instruments draw on ({', '.join(f'{d}: {budget.domains[d]}' for d in domains) or 'none budgeted'}"
+                f" = {available})"
+            )
 
     return issues

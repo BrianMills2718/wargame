@@ -55,7 +55,7 @@ from wargame.config import (
 from wargame.models import ActionIntent, ActorScore, AdvisorAnswer, ScenarioSpec
 from wargame.parser import build_parser_messages, validate_action_intent
 from wargame.scenario import init_db, load_scenario
-from wargame.turn import adjudicate_action, generate_observations
+from wargame.turn import adjudicate_action, atomic_turn, generate_observations
 
 MODES = ("human_vs_ai", "human_vs_human", "ai_vs_ai")
 
@@ -193,7 +193,7 @@ def get_human_action(
                 **LLM_CALL_DEFAULTS,
             )
 
-            issues = validate_action_intent(intent, actor)
+            issues = validate_action_intent(intent, actor, spec.resource_budget[actor_id])
             if issues:
                 print(f"  ⚠ Problem with your order: {issues}")
                 print("  Try again.")
@@ -245,6 +245,7 @@ def get_ai_action(
     return request_valid_ai_action(
         call_llm_structured,
         actor,
+        spec.resource_budget[actor_id],
         messages,
         model=AI_MODEL,
         task="wargame_ai_opponent",
@@ -304,79 +305,81 @@ def run_game(
     print(f"  Database: {db_path}")
 
     for turn_idx in range(total_turns):
-        # Run mechanical phases
-        mech = run_mechanical_phases(conn)
-        turn = mech.turn_number
+        # All of the turn lands or none of it: a failure anywhere (AI, GM,
+        # engine) rolls back to the state before the turn began.
+        with atomic_turn(conn, gm_session, action_histories):
+            # Run mechanical phases
+            mech = run_mechanical_phases(conn)
+            turn = mech.turn_number
 
-        print_banner(f"TURN {turn} / {total_turns} ({spec.meta.time_per_turn})", "─")
+            print_banner(f"TURN {turn} / {total_turns} ({spec.meta.time_per_turn})", "─")
 
-        if mech.all_mechanical_deltas:
-            print(f"\n  World dynamics this turn:")
-            for var_id, delta in sorted(mech.all_mechanical_deltas.items()):
-                if abs(delta) > 0.005:
-                    print(f"    {var_id.replace('sv_', '')}: {delta:+.3f}")
+            if mech.all_mechanical_deltas:
+                print(f"\n  World dynamics this turn:")
+                for var_id, delta in sorted(mech.all_mechanical_deltas.items()):
+                    if abs(delta) > 0.005:
+                        print(f"    {var_id.replace('sv_', '')}: {delta:+.3f}")
 
-        # Collect actions from all actors
-        turn_actions: list[tuple[str, ActionIntent]] = []
+            # Collect actions from all actors
+            turn_actions: list[tuple[str, ActionIntent]] = []
 
-        for actor_id in actor_ids:
-            is_human = (actor_id == human_actor)
+            for actor_id in actor_ids:
+                is_human = (actor_id == human_actor)
 
-            # Show this actor's world view
-            estimates = get_actor_state_estimates(conn, actor_id)
-            actor_name = next(a.name for a in spec.actors if a.id == actor_id)
-
-            if is_human:
-                print_state_summary(estimates, f"Your intelligence picture ({actor_name})")
-                action = get_human_action(
-                    conn, spec, actor_id, trace_id,
-                    turn_number=turn, action_history=action_histories[actor_id],
-                    total_turns=total_turns,
-                )
-            elif actor_id in ai_actors:
-                if mode != "ai_vs_ai":
-                    print(f"\n  {actor_name} is deciding...")
-                action = get_ai_action(conn, spec, actor_id, turn, action_histories[actor_id], trace_id)
-                if mode == "ai_vs_ai":
-                    print(f"\n  [{actor_name}] {action.action_category}: {action.intended_effect[:80]}")
-            else:
-                # Human vs human: other human's turn
-                print_state_summary(estimates, f"Intelligence picture ({actor_name})")
-                action = get_human_action(
-                    conn, spec, actor_id, trace_id,
-                    turn_number=turn, action_history=action_histories[actor_id],
-                    total_turns=total_turns,
-                )
-
-            turn_actions.append((actor_id, action))
-            action_histories[actor_id].append(
-                f"Turn {turn}: [{action.action_category}] {action.intended_effect[:60]}"
-            )
-
-        # Adjudicate all actions
-        for actor_id, action in turn_actions:
-            actor_name = next(a.name for a in spec.actors if a.id == actor_id)
-            print(f"\n  Adjudicating {actor_name}'s action...")
-
-            chosen, packet = adjudicate_action(
-                conn, spec, action, turn, mech.all_mechanical_deltas, gm_session,
-            )
-
-            print(f"  Result: {chosen['outcome_id'].upper()}")
-            print(f"  {chosen['narrative']}")
-
-        # Generate observation packets
-        obs_packets = generate_observations(conn, spec, turn, turn_actions)
-        for actor_id, obs_packet in obs_packets.items():
-            is_human = (actor_id == human_actor)
-            if is_human or mode == "ai_vs_ai":
+                # Show this actor's world view
+                estimates = get_actor_state_estimates(conn, actor_id)
                 actor_name = next(a.name for a in spec.actors if a.id == actor_id)
-                print(f"\n  📡 Intelligence briefing ({actor_name}):")
-                for obs in obs_packet["observations"]:
-                    print(f"    • {obs}")
 
-        record_state_history(conn, turn)
-        conn.commit()
+                if is_human:
+                    print_state_summary(estimates, f"Your intelligence picture ({actor_name})")
+                    action = get_human_action(
+                        conn, spec, actor_id, trace_id,
+                        turn_number=turn, action_history=action_histories[actor_id],
+                        total_turns=total_turns,
+                    )
+                elif actor_id in ai_actors:
+                    if mode != "ai_vs_ai":
+                        print(f"\n  {actor_name} is deciding...")
+                    action = get_ai_action(conn, spec, actor_id, turn, action_histories[actor_id], trace_id)
+                    if mode == "ai_vs_ai":
+                        print(f"\n  [{actor_name}] {action.action_category}: {action.intended_effect[:80]}")
+                else:
+                    # Human vs human: other human's turn
+                    print_state_summary(estimates, f"Intelligence picture ({actor_name})")
+                    action = get_human_action(
+                        conn, spec, actor_id, trace_id,
+                        turn_number=turn, action_history=action_histories[actor_id],
+                        total_turns=total_turns,
+                    )
+
+                turn_actions.append((actor_id, action))
+                action_histories[actor_id].append(
+                    f"Turn {turn}: [{action.action_category}] {action.intended_effect[:60]}"
+                )
+
+            # Adjudicate all actions
+            for actor_id, action in turn_actions:
+                actor_name = next(a.name for a in spec.actors if a.id == actor_id)
+                print(f"\n  Adjudicating {actor_name}'s action...")
+
+                chosen, packet = adjudicate_action(
+                    conn, spec, action, turn, mech.all_mechanical_deltas, gm_session,
+                )
+
+                print(f"  Result: {chosen['outcome_id'].upper()}")
+                print(f"  {chosen['narrative']}")
+
+            # Generate observation packets
+            obs_packets = generate_observations(conn, spec, turn, turn_actions)
+            for actor_id, obs_packet in obs_packets.items():
+                is_human = (actor_id == human_actor)
+                if is_human or mode == "ai_vs_ai":
+                    actor_name = next(a.name for a in spec.actors if a.id == actor_id)
+                    print(f"\n  📡 Intelligence briefing ({actor_name}):")
+                    for obs in obs_packet["observations"]:
+                        print(f"    • {obs}")
+
+            record_state_history(conn, turn)
 
     # End of game
     print_banner("GAME OVER")

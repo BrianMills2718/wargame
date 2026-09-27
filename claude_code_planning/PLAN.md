@@ -602,7 +602,7 @@ CREATE TABLE state_history (
 - [ ] Parser rejects actions using instruments the actor doesn't possess
 - [ ] Sub-agent (Intel Chief) provides briefing based on ObservationPacket
 - [ ] Sub-agent briefing does NOT contain information the actor shouldn't see
-- [ ] Resource budget enforced (action rejected if insufficient budget)
+- [x] Resource budget enforced (action rejected if insufficient budget) — `validate_action_intent`, human and AI; `tests/test_atomic_turns_and_budget.py`
 - [ ] Single-player CLI loop works: briefing → command → resolution → briefing
 
 **Verification:** Play 5 turns as US player against scripted Iran actions. Verify no fog-of-war leaks. Verify sub-agent doesn't sycophantically agree with bad plans.

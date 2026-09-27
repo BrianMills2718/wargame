@@ -79,6 +79,17 @@ class GMSession:
         """The full message list as it will be sent."""
         return [{"role": "system", "content": self.system_prompt}, *self.history]
 
+    def checkpoint(self) -> tuple[list[dict[str, str]], int]:
+        """Snapshot the conversation so a failed turn can be forgotten."""
+        return list(self.history), self.adjudications
+
+    def restore(self, checkpoint: tuple[list[dict[str, str]], int]) -> None:
+        """Return to a checkpoint. A rolled-back turn must not stay in the GM's
+        memory: it would remember adjudicating actions the game never applied."""
+        history, adjudications = checkpoint
+        self.history = list(history)
+        self.adjudications = adjudications
+
     def _trim(self) -> None:
         if self.max_history_pairs is None:
             return

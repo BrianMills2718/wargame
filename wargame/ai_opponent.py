@@ -7,38 +7,40 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-from wargame.models import ActionIntent, ActorSpec, CharacterModel
+from wargame.models import ActionIntent, ActorSpec, CharacterModel, ResourceBudgetSpec
 from wargame.parser import validate_action_intent
 
-# An AI action naming an instrument its actor does not own is re-requested this
-# many times in total before the turn fails.
+# An AI action naming an instrument its actor does not own, or costing more
+# than its budget allows, is re-requested this many times in total before the
+# turn fails.
 MAX_AI_ACTION_ATTEMPTS = 3
 
 
 def request_valid_ai_action(
     call_fn: Callable[..., tuple[ActionIntent, Any]],
     actor: ActorSpec,
+    budget: ResourceBudgetSpec,
     messages: list[dict[str, str]],
     **call_kwargs: Any,
 ) -> ActionIntent:
     """Ask the AI for an action until it passes the same check human orders get.
 
-    Without this an AI could use another actor's (or an invented) instrument
-    and the action went straight to adjudication.
+    Without this an AI could use another actor's (or an invented) instrument,
+    or overspend its budget, and the action went straight to adjudication.
     """
     messages = list(messages)
     issues: list[str] = []
     for _ in range(MAX_AI_ACTION_ATTEMPTS):
         intent, _ = call_fn(messages=messages, response_model=ActionIntent, **call_kwargs)
         intent.actor_id = actor.id
-        issues = validate_action_intent(intent, actor)
+        issues = validate_action_intent(intent, actor, budget)
         if not issues:
             return intent
         messages = messages + [
             {"role": "assistant", "content": intent.model_dump_json()},
             {"role": "user", "content": (
                 f"That action is invalid: {'; '.join(issues)}. "
-                "Choose again using only the instruments listed as yours."
+                "Choose again using only the instruments listed as yours, within your resource budget."
             )},
         ]
     raise ValueError(

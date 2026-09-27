@@ -30,7 +30,7 @@ from wargame.gm_session import GMSession
 from wargame.models import ActionIntent
 from wargame.parser import build_parser_messages, validate_action_intent
 from wargame.scenario import init_db, load_scenario
-from wargame.turn import adjudicate_action, generate_observations, turns_remaining
+from wargame.turn import adjudicate_action, atomic_turn, generate_observations, turns_remaining
 from wargame.config import (
     gm_call_defaults,
     AI_MAX_BUDGET,
@@ -178,7 +178,7 @@ def _get_ai_action(conn, spec, actor_id, turn_number, trace_id):
         turn_number=turn_number, resource_budget=budget,
     )
     return request_valid_ai_action(
-        call_llm_structured, actor, messages,
+        call_llm_structured, actor, spec.resource_budget[actor_id], messages,
         model=AI_MODEL, task="wargame_ai_opponent", trace_id=trace_id,
         max_budget=AI_MAX_BUDGET, **LLM_CALL_DEFAULTS,
     )
@@ -221,71 +221,73 @@ async def submit_command(req: CommandRequest):
             **LLM_CALL_DEFAULTS,
         )
         human_intent.actor_id = human_actor
-        issues = validate_action_intent(human_intent, actor)
+        issues = validate_action_intent(human_intent, actor, spec.resource_budget[human_actor])
         if issues:
             raise HTTPException(400, f"Invalid order: {'; '.join(issues)}")
 
-    # Run mechanical phases
-    mech = run_mechanical_phases(conn)
-    turn = mech.turn_number
+    # All of the turn lands or none of it: a failure anywhere (AI, GM, engine)
+    # rolls back to the state before the turn began.
+    with atomic_turn(conn, game["gm_session"], game["action_histories"]):
+        # Run mechanical phases
+        mech = run_mechanical_phases(conn)
+        turn = mech.turn_number
 
-    turn_result = {
-        "turn": turn,
-        "mechanical_deltas": {k: round(v, 4) for k, v in mech.all_mechanical_deltas.items() if abs(v) > 0.005},
-        "actions": [],
-        "observations": {},
-    }
+        turn_result = {
+            "turn": turn,
+            "mechanical_deltas": {k: round(v, 4) for k, v in mech.all_mechanical_deltas.items() if abs(v) > 0.005},
+            "actions": [],
+            "observations": {},
+        }
 
-    turn_actions = []
-    if human_intent is not None:
-        turn_actions.append((human_actor, human_intent))
-        game["action_histories"][human_actor].append(
-            f"Turn {turn}: [{human_intent.action_category}] {human_intent.intended_effect[:60]}"
-        )
+        turn_actions = []
+        if human_intent is not None:
+            turn_actions.append((human_actor, human_intent))
+            game["action_histories"][human_actor].append(
+                f"Turn {turn}: [{human_intent.action_category}] {human_intent.intended_effect[:60]}"
+            )
 
-    # AI actions
-    for ai_id in game["ai_actors"]:
-        ai_intent = _get_ai_action(conn, spec, ai_id, turn, trace_id)
-        turn_actions.append((ai_id, ai_intent))
-        game["action_histories"][ai_id].append(
-            f"Turn {turn}: [{ai_intent.action_category}] {ai_intent.intended_effect[:60]}"
-        )
+        # AI actions
+        for ai_id in game["ai_actors"]:
+            ai_intent = _get_ai_action(conn, spec, ai_id, turn, trace_id)
+            turn_actions.append((ai_id, ai_intent))
+            game["action_histories"][ai_id].append(
+                f"Turn {turn}: [{ai_intent.action_category}] {ai_intent.intended_effect[:60]}"
+            )
 
-    # Adjudicate all actions
-    for actor_id, action in turn_actions:
-        chosen, packet = adjudicate_action(
-            conn, spec, action, turn, mech.all_mechanical_deltas, game["gm_session"],
-        )
+        # Adjudicate all actions
+        for actor_id, action in turn_actions:
+            chosen, packet = adjudicate_action(
+                conn, spec, action, turn, mech.all_mechanical_deltas, game["gm_session"],
+            )
 
-        # Build probability table for spectator view
-        prob_table = [
-            {"outcome": o.outcome_id, "probability": round(o.probability, 2),
-             "transitions": [{"var": t.var_id, "delta": round(t.delta, 3)} for t in o.state_transitions]}
-            for o in packet.possible_outcomes
-        ]
+            # Build probability table for spectator view
+            prob_table = [
+                {"outcome": o.outcome_id, "probability": round(o.probability, 2),
+                 "transitions": [{"var": t.var_id, "delta": round(t.delta, 3)} for t in o.state_transitions]}
+                for o in packet.possible_outcomes
+            ]
 
-        turn_result["actions"].append({
-            "actor": _get_actor_name(spec, actor_id),
-            "actor_id": actor_id,
-            "is_human": actor_id == human_actor,
-            "category": action.action_category,
-            "instruments": action.instruments_used,
-            "intent": action.intended_effect,
-            "outcome": chosen["outcome_id"],
-            "narrative": chosen["narrative"],
-            "gm_reasoning": packet.reasoning,
-            "probability_table": prob_table,
-            "gm_transitions": [{"var": t["var_id"], "delta": round(t["delta"], 3)} for t in chosen["state_transitions"]],
-        })
+            turn_result["actions"].append({
+                "actor": _get_actor_name(spec, actor_id),
+                "actor_id": actor_id,
+                "is_human": actor_id == human_actor,
+                "category": action.action_category,
+                "instruments": action.instruments_used,
+                "intent": action.intended_effect,
+                "outcome": chosen["outcome_id"],
+                "narrative": chosen["narrative"],
+                "gm_reasoning": packet.reasoning,
+                "probability_table": prob_table,
+                "gm_transitions": [{"var": t["var_id"], "delta": round(t["delta"], 3)} for t in chosen["state_transitions"]],
+            })
 
-    # Generate observations
-    turn_result["observations"] = {
-        actor_id: packet["observations"]
-        for actor_id, packet in generate_observations(conn, spec, turn, turn_actions).items()
-    }
+        # Generate observations
+        turn_result["observations"] = {
+            actor_id: packet["observations"]
+            for actor_id, packet in generate_observations(conn, spec, turn, turn_actions).items()
+        }
 
-    record_state_history(conn, turn)
-    conn.commit()
+        record_state_history(conn, turn)
     game["turn_log"].append(turn_result)
 
     # Return updated state
