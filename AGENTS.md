@@ -34,6 +34,19 @@ LLMs never touch the database. They suggest; Python decides.
 - System-assigned IDs excluded from LLM schemas; generated in Python
 - Prompts currently inline (to be migrated to YAML/Jinja2 when stabilized)
 
+## Public hosting mode (web UI)
+
+The web server keeps one game per visitor (server-side session, cookie `wg_session`: HttpOnly, SameSite=Lax, Secure behind https). Session logic is in `wargame/web/sessions.py`. Unset env vars keep the old behaviour.
+
+| Env var | Default | Effect |
+| --- | --- | --- |
+| `WARGAME_PUBLIC` | unset | `1` turns on public mode: `scenario_path` must be a bundled scenario name in `scenarios/`, client `db_path` is ignored (db lives in a per-process temp dir named from the trace id, and is deleted on eviction/restart), `mode=ai_vs_ai` is refused, human turns per game are capped, and errors are plain sentences with no paths or stack traces. |
+| `WARGAME_PUBLIC_MAX_TURNS` | 8 | Turn cap per game in public mode. |
+| `WARGAME_MAX_SESSIONS` | 40 | Max live sessions; the oldest visitor without a game (else idlest) is evicted first. |
+| `WARGAME_SESSION_TTL_MIN` | 120 | Idle minutes before a session is dropped (connection closed; db file deleted in public mode). |
+
+Concurrency: endpoints are plain `def` (FastAPI threadpool), so one visitor's turn does not block others. A per-session lock makes a second request from the same visitor while a turn runs return 409 ("Your last order is still being processed."). In public mode `/docs`, `/redoc` and `/openapi.json` return 404, and stale `wargame_games_*` temp dirs older than 1 hour are swept at first use. Turn latency is dominated by the GM model (about 10-20s per call, 2 calls per turn); expect 30-60s per turn. There is still no per-IP rate limit or global spend cap.
+
 ## Scenario Spec
 
 Scenarios are YAML files in `scenarios/`. A scenario defines: actors, values, classification rules, domain models, character models, instruments, state variables, causal edges, variable dynamics, initial state, resource budgets. The engine is general; the scenario is specific.

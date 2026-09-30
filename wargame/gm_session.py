@@ -120,10 +120,11 @@ class GMSession:
         expected = {a.id for a in self.spec.actors}
         valid_var_ids = {sv.id for sv in self.spec.state_variables}
         try:
+            retry_feedback: list[dict[str, str]] = []
             for _ in range(MAX_GM_ATTEMPTS):
                 packet, _ = self._call(
                     model=self.model,
-                    messages=self.messages(),
+                    messages=self.messages() + retry_feedback,
                     response_model=AdjudicationPacket,
                     task="wargame_gm_adjudication",
                     trace_id=self.trace_id,
@@ -133,6 +134,17 @@ class GMSession:
                 problems = adjudication_structure_issues(packet, valid_var_ids, expected)
                 if not problems:
                     break
+                # Tell the model what was wrong. Resending the identical request
+                # wasted a full call each time and repeated the same mistake.
+                # The feedback is not kept in the conversation history.
+                retry_feedback = [
+                    {"role": "assistant", "content": packet.model_dump_json()},
+                    {"role": "user", "content": (
+                        f"That packet is invalid: {'; '.join(problems)}. Reissue the full packet. "
+                        f"Observability must have exactly one entry per actor, using only these "
+                        f"actor_ids: {', '.join(sorted(expected))}."
+                    )},
+                ]
             else:
                 raise ValueError(
                     f"GM packet still invalid after {MAX_GM_ATTEMPTS} attempts: {'; '.join(problems)}"
