@@ -241,3 +241,18 @@ def test_bad_env_values_fail_loudly(monkeypatch):
     monkeypatch.setenv("WARGAME_PUBLIC_MAX_TURNS", "0")
     with pytest.raises(RuntimeError, match="WARGAME_PUBLIC_MAX_TURNS"):
         sessions.public_max_turns()
+
+
+# --- /api/config (what the page shows a public visitor) ---------------------------------------------------------
+
+def test_config_reports_public_mode(public):
+    with _client() as c:
+        cfg = c.get("/api/config").json()
+    assert cfg["public"] is True and cfg["max_turns"] >= 1 and cfg["model"] and cfg["example_orders"]
+
+
+def test_config_reports_default_mode(monkeypatch):
+    monkeypatch.delenv("WARGAME_PUBLIC", raising=False)
+    with _client() as c:
+        cfg = c.get("/api/config").json()
+    assert cfg["public"] is False and cfg["max_turns"] is None

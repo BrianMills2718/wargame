@@ -123,10 +123,15 @@
   @keyframes pulse { 0%,100% { opacity: 0.4; } 50% { opacity: 1; } }
 
   /* Start screen */
-  .start-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; }
+  .start-screen { flex: 1 1 100%; width: 100%; padding: 0 20px; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; }
   .start-screen h1 { font-size: 22px; color: #e0e0e0; margin-bottom: 6px; letter-spacing: 3px; }
   .start-screen p { color: #888; margin-bottom: 20px; font-size: 13px; }
-  .start-options { display: flex; gap: 10px; flex-direction: column; width: 320px; }
+  .start-options { display: flex; gap: 10px; flex-direction: column; width: 320px; max-width: 100%; }
+  .start-intro { max-width: 560px; color: #a8a8b0; font-size: 13px; line-height: 1.55; margin: 0 0 18px; }
+  .start-error { max-width: 560px; color: #f87171; font-size: 13px; margin-bottom: 14px; }
+  .example-orders { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 12px 0; }
+  .example-orders button { background: #111118; border: 1px solid #2a2a35; color: #9a9aa5; font-family: inherit; font-size: 11px; padding: 4px 9px; border-radius: 12px; cursor: pointer; }
+  .example-orders button:hover { color: #e0e0e0; border-color: #4ade80; }
   .start-btn { background: #111118; border: 1px solid #2a2a35; color: #c0c0c0; padding: 12px; font-family: inherit; font-size: 13px; cursor: pointer; border-radius: 4px; text-align: left; }
   .start-btn:hover { border-color: #4ade80; color: #4ade80; }
   .start-btn .label { font-weight: bold; display: block; margin-bottom: 3px; }
@@ -158,6 +163,8 @@
   <div class="start-screen" id="start-screen">
     <h1>WARGAME</h1>
     <p>US-Iran Crisis Simulation</p>
+    <p class="start-intro" id="start-intro">Play one side of a fictional US–Iran crisis. Type any order in plain English; an AI game master decides how the world responds, and fixed rules keep the outcome coherent.</p>
+    <div class="start-error" id="start-error" style="display:none"></div>
     <div class="start-options">
       <button class="start-btn" onclick="startGame('actor_us','human_vs_ai')">
         <span class="label">Play as United States</span>
@@ -167,7 +174,7 @@
         <span class="label">Play as Iran</span>
         <span class="desc">vs AI United States</span>
       </button>
-      <button class="start-btn" onclick="startGame('actor_us','ai_vs_ai')">
+      <button class="start-btn" id="btn-ai-vs-ai" onclick="startGame('actor_us','ai_vs_ai')">
         <span class="label">Watch AI vs AI</span>
         <span class="desc">Spectator / God Mode</span>
       </button>
@@ -199,6 +206,7 @@
         <input type="text" class="command-input" id="command-input" placeholder="Enter your directive..." autofocus>
         <button class="send-btn" id="send-btn" onclick="submitCommand()">EXECUTE</button>
       </div>
+      <div class="example-orders" id="example-orders" style="display:none"></div>
     </div>
   </div>
 
@@ -253,13 +261,22 @@ async function startGame(playAs, mode) {
   ['panel-left','panel-center','panel-right'].forEach(id => document.getElementById(id).style.display = '');
   isAiVsAi = mode === 'ai_vs_ai';
   if (isAiVsAi) document.getElementById('command-area').style.display = 'none';
-  document.getElementById('model-badge').textContent = 'gemini-2.5-flash';
+  document.getElementById('model-badge').textContent = (serverConfig && serverConfig.model) || '';
 
   const res = await fetch('/api/start', {
     method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({scenario_path:'scenarios/us_iran_2026.yaml', play_as:playAs, mode}),
   });
-  gameState = await res.json();
+  const startData = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    document.getElementById('start-screen').style.display = '';
+    ['panel-left','panel-center','panel-right'].forEach(id => document.getElementById(id).style.display = 'none');
+    const box = document.getElementById('start-error');
+    box.textContent = startData.detail || 'The game could not start. Please try again.';
+    box.style.display = '';
+    return;
+  }
+  gameState = startData;
   turnCount = 0;
   totalCost = 0;
 
@@ -300,7 +317,8 @@ async function submitCommand(directive) {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({directive: cmd}),
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.detail || ('The server refused this order (HTTP ' + res.status + ').'));
     turnCount = data.turn_result.turn;
 
     document.getElementById('turn-badge').textContent = `TURN ${turnCount}`;
@@ -310,7 +328,7 @@ async function submitCommand(directive) {
     addTurnNarrative(data.turn_result);
     addTurnListEntry(data.turn_result);
   } catch(e) {
-    addSystemMessage('Error: ' + e.message);
+    addSystemMessage(e.message);
   }
 
   document.getElementById('loading').classList.remove('active');
@@ -541,6 +559,22 @@ document.addEventListener('keydown', e => {
     e.preventDefault(); submitCommand();
   }
 });
+
+// Public hosting mode (see /api/config): plain intro, example orders, no AI-vs-AI, honest waiting text.
+let serverConfig = null;
+(async function loadConfig() {
+  try {
+    const r = await fetch('/api/config'); if (!r.ok) return;
+    serverConfig = await r.json();
+    if (serverConfig.model) document.getElementById('model-badge').textContent = serverConfig.model;
+    if (!serverConfig.public) return;
+    const ai = document.getElementById('btn-ai-vs-ai'); if (ai) ai.style.display = 'none';
+    document.getElementById('start-intro').textContent = 'Play one side of a fictional US–Iran crisis. Type any order in plain English (for example a sanction, a signal, a deal); an AI game master decides how the world responds, and fixed rules keep the outcome coherent. You get ' + serverConfig.max_turns + ' turns, and each turn takes about a minute while the game master reasons.';
+    document.querySelector('.loading-spinner').textContent = 'The game master is deciding what happens (about a minute)...';
+    const box = document.getElementById('example-orders'); box.style.display = '';
+    (serverConfig.example_orders || []).forEach(t => { const b = document.createElement('button'); b.textContent = t; b.onclick = () => { const i = document.getElementById('command-input'); i.value = t; i.focus(); }; box.appendChild(b); });
+  } catch (e) { /* the page still works without the config */ }
+})();
 </script>
 </body>
 </html>
