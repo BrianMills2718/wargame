@@ -1,3 +1,4 @@
+from pathlib import Path
 """Public hosting mode and per-visitor sessions. No LLM calls: replies are scripted."""
 
 import os
@@ -73,7 +74,7 @@ def test_session_cookie_flags():
 
 @pytest.mark.parametrize("bad", [
     "/etc/passwd", "../etc/passwd", "scenarios/../pyproject.toml", "..", "",
-    "scenarios/", "/home/brian/code/wargame/scenarios/us_iran_2026.yaml",
+    "scenarios/", str(Path(__file__).resolve().parent.parent / "scenarios" / "us_iran_2026.yaml"),
     "nonexistent", "us_iran_2026.yaml/../x", "\\windows\\x", ".hidden.yaml",
 ])
 def test_public_rejects_bad_scenario_paths(public, bad):
