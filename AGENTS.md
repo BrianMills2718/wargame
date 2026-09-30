@@ -45,7 +45,7 @@ The web server keeps one game per visitor (server-side session, cookie `wg_sessi
 | `WARGAME_MAX_SESSIONS` | 40 | Max live sessions; the oldest visitor without a game (else idlest) is evicted first. |
 | `WARGAME_SESSION_TTL_MIN` | 120 | Idle minutes before a session is dropped (connection closed; db file deleted in public mode). |
 
-Known limit: endpoints block the event loop during LLM calls (sqlite connections are thread-bound), so one visitor's turn delays others; put a reverse proxy/rate limit in front and do not expect concurrency beyond serial turns.
+Concurrency: endpoints are plain `def` (FastAPI threadpool), so one visitor's turn does not block others. A per-session lock makes a second request from the same visitor while a turn runs return 409 ("Your last order is still being processed."). In public mode `/docs`, `/redoc` and `/openapi.json` return 404, and stale `wargame_games_*` temp dirs older than 1 hour are swept at first use. Turn latency is dominated by the GM model (about 10-20s per call, 2 calls per turn); expect 30-60s per turn. There is still no per-IP rate limit or global spend cap.
 
 ## Scenario Spec
 

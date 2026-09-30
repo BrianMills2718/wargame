@@ -37,6 +37,7 @@ def new_game_state() -> dict:
         "mode": None,
         "db_path": None,
         "gm_session": None,
+        "lock": threading.RLock(),  # held while a request is using this game
     }
 
 
@@ -105,6 +106,13 @@ class SessionStore:
     def __len__(self) -> int:
         return len(self._items)
 
+    def _busy(self, sid: str) -> bool:
+        lock = self._items[sid]["game"]["lock"]
+        if lock.acquire(blocking=False):
+            lock.release()
+            return False
+        return True
+
     def _drop(self, sid: str) -> None:
         item = self._items.pop(sid)
         discard_game(item["game"], delete_db=public_mode())
@@ -112,6 +120,9 @@ class SessionStore:
     def _sweep_locked(self) -> None:
         cutoff = self._clock() - session_ttl_seconds()
         for sid in [s for s, it in self._items.items() if it["seen"] < cutoff]:
+            if self._busy(sid):
+                self._items[sid]["seen"] = self._clock()  # still working: not idle
+                continue
             self._drop(sid)
 
     def sweep(self) -> None:
@@ -130,9 +141,11 @@ class SessionStore:
             limit = max_sessions()
             while len(self._items) >= limit:
                 # Prefer evicting a visitor who never started a game, then the idlest.
+                idle = [s for s in self._items if not self._busy(s)]
+                if not idle:
+                    break  # everyone is mid-request: briefly exceed the cap rather than cut one off
                 victim = next(
-                    (s for s, it in self._items.items() if it["game"]["conn"] is None),
-                    next(iter(self._items)),
+                    (s for s in idle if self._items[s]["game"]["conn"] is None), idle[0]
                 )
                 self._drop(victim)
             new_sid = secrets.token_urlsafe(24)
@@ -219,6 +232,11 @@ class SessionMiddleware:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
+        if public_mode() and scope["path"] in ("/docs", "/redoc", "/openapi.json", "/docs/oauth2-redirect"):
+            await send({"type": "http.response.start", "status": 404,
+                        "headers": [(b"content-type", b"application/json")]})
+            await send({"type": "http.response.body", "body": b'{"detail":"Not found."}'})
+            return
         sid, state, created = STORE.get(_cookie_from_scope(scope))
         secure = _is_https(scope)
         token = _current.set(state)
@@ -283,3 +301,29 @@ def resolve_bundled_scenario(name: str) -> str:
     if resolved.parent != root:
         raise refusal
     return str(resolved)
+
+
+TEMP_DIR_PREFIX = "wargame_games_"
+
+
+def sweep_stale_temp_dirs(root: str | None = None, max_age_seconds: float = 3600.0) -> list[str]:
+    """Delete leftover `wargame_games_*` dirs older than max_age under the temp root.
+
+    Only real directories with the exact prefix are touched (never symlinks).
+    Returns the removed paths.
+    """
+    import shutil
+    import tempfile
+
+    base = Path(root or tempfile.gettempdir())
+    removed = []
+    cutoff = time.time() - max_age_seconds
+    for d in base.glob(TEMP_DIR_PREFIX + "*"):
+        try:
+            if d.is_symlink() or not d.is_dir() or d.stat().st_mtime > cutoff:
+                continue
+            shutil.rmtree(d)
+            removed.append(str(d))
+        except OSError:
+            log.exception("could not remove stale temp dir")
+    return removed

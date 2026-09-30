@@ -23,7 +23,9 @@ def init_db(spec: ScenarioSpec, db_path: str = ":memory:") -> sqlite3.Connection
 
     Returns an open connection with all tables created and populated.
     """
-    conn = sqlite3.connect(db_path)
+    # check_same_thread=False: the web server runs each request in a threadpool thread and
+    # serialises access per game with a lock, so one connection is used by one thread at a time.
+    conn = sqlite3.connect(db_path, check_same_thread=False)
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
     _create_tables(conn)

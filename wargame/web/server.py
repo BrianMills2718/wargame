@@ -6,6 +6,7 @@ Wraps the game engine in an HTTP API. Manages a single active game session.
 from __future__ import annotations
 
 import atexit
+import contextlib
 import json
 import shutil
 import tempfile
@@ -35,13 +36,16 @@ from wargame.gm_session import GMSession
 from wargame.models import ActionIntent
 from wargame.parser import build_parser_messages, validate_action_intent
 from wargame.scenario import init_db, load_scenario
+import wargame.web.sessions as sessions_mod
 from wargame.web.sessions import (
     SessionMiddleware,
+    TEMP_DIR_PREFIX,
     discard_game,
     game,
     public_max_turns,
     public_mode,
     resolve_bundled_scenario,
+    sweep_stale_temp_dirs,
 )
 from wargame.turn import adjudicate_action, atomic_turn, generate_observations, turns_remaining
 from wargame.config import (
@@ -56,7 +60,19 @@ from wargame.config import (
     PARSER_MODEL,
 )
 
-app = FastAPI(title="Geopolitical Wargame")
+@contextlib.asynccontextmanager
+async def _lifespan(_app):
+    yield
+    # uvicorn re-raises SIGTERM after shutdown, which skips atexit, so clean up
+    # here: close every session and remove this process's temp db dir.
+    global _public_db_dir
+    sessions_mod.STORE.close_all()
+    if _public_db_dir is not None:
+        shutil.rmtree(_public_db_dir, ignore_errors=True)
+        _public_db_dir = None
+
+
+app = FastAPI(title="Geopolitical Wargame", lifespan=_lifespan)
 
 # Per-visitor game state: `game` resolves to the current request's session dict
 # (see wargame/web/sessions.py). Same keys as before.
@@ -69,7 +85,8 @@ def _public_db_path(trace_id: str) -> str:
     """Server-chosen db path in a per-process temp dir, named only from the trace id."""
     global _public_db_dir
     if _public_db_dir is None:
-        _public_db_dir = tempfile.mkdtemp(prefix="wargame_games_")
+        sweep_stale_temp_dirs()  # leftovers from earlier hard-killed processes
+        _public_db_dir = tempfile.mkdtemp(prefix=TEMP_DIR_PREFIX)
         atexit.register(shutil.rmtree, _public_db_dir, ignore_errors=True)
     return str(Path(_public_db_dir) / f"{trace_id}.sqlite")
 
@@ -117,9 +134,30 @@ async def index():
     return FileResponse(WEB_DIR / "index.html")
 
 
+@contextlib.contextmanager
+def _exclusive():
+    """Hold this visitor's game lock; a second concurrent request gets a plain 409.
+
+    Endpoints are plain `def`, so FastAPI runs them in its threadpool: other
+    visitors are served while this one waits on the LLM.
+    """
+    lock = game["lock"]
+    if not lock.acquire(blocking=False):
+        raise HTTPException(409, "Your last order is still being processed.")
+    try:
+        yield
+    finally:
+        lock.release()
+
+
 @app.post("/api/start")
-async def start_game(req: StartGameRequest):
+def start_game(req: StartGameRequest):
     """Initialize a new game."""
+    with _exclusive():
+        return _start_game(req)
+
+
+def _start_game(req: StartGameRequest):
     public = public_mode()
     scenario_path = req.scenario_path
     if public:
@@ -177,8 +215,13 @@ async def start_game(req: StartGameRequest):
 
 
 @app.get("/api/state")
-async def get_state():
+def get_state():
     """Get current game state."""
+    with _exclusive():
+        return _get_state()
+
+
+def _get_state():
     if game["conn"] is None:
         raise HTTPException(400, "No game in progress")
 
@@ -221,8 +264,14 @@ def _get_ai_action(conn, spec, actor_id, turn_number, trace_id):
 
 
 @app.post("/api/command")
-async def submit_command(req: CommandRequest):
-    """Submit a command and run a full turn.
+def submit_command(req: CommandRequest):
+    """Submit a command and run a full turn (one at a time per visitor)."""
+    with _exclusive():
+        return _submit_command(req)
+
+
+def _submit_command(req: CommandRequest):
+    """Run a full turn.
 
     For human_vs_ai: parses the human command + generates AI action.
     For ai_vs_ai: generates actions for both sides (directive is ignored).
