@@ -11,6 +11,7 @@ import json
 import shutil
 import tempfile
 import uuid
+import os
 from pathlib import Path
 from typing import Literal
 
@@ -126,6 +127,23 @@ class StartGameRequest(BaseModel):
 
 class CommandRequest(BaseModel):
     directive: str
+
+
+@app.get("/api/config")
+def public_config():
+    """What the page needs to tell a public visitor (model in use, turn cap, sample orders)."""
+    from wargame.config import GM_MODEL
+    public = os.environ.get("WARGAME_PUBLIC") == "1"
+    return {
+        "public": public,
+        "model": GM_MODEL.split("/", 1)[-1] if "/" in GM_MODEL else GM_MODEL,
+        "max_turns": int(os.environ.get("WARGAME_PUBLIC_MAX_TURNS", "8")) if public else None,
+        "example_orders": [
+            "Tighten sanctions on Iranian oil exports and offer talks through Oman.",
+            "Move a carrier strike group into the Gulf and reassure our allies.",
+            "Propose a limited deal: sanctions relief for capped enrichment.",
+        ],
+    }
 
 
 @app.get("/")
