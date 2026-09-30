@@ -5,13 +5,18 @@ Wraps the game engine in an HTTP API. Manages a single active game session.
 
 from __future__ import annotations
 
+import atexit
 import json
+import shutil
+import tempfile
 import uuid
 from pathlib import Path
 from typing import Literal
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.exception_handlers import request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
 from llm_client import call_llm_structured
@@ -30,6 +35,14 @@ from wargame.gm_session import GMSession
 from wargame.models import ActionIntent
 from wargame.parser import build_parser_messages, validate_action_intent
 from wargame.scenario import init_db, load_scenario
+from wargame.web.sessions import (
+    SessionMiddleware,
+    discard_game,
+    game,
+    public_max_turns,
+    public_mode,
+    resolve_bundled_scenario,
+)
 from wargame.turn import adjudicate_action, atomic_turn, generate_observations, turns_remaining
 from wargame.config import (
     gm_call_defaults,
@@ -45,19 +58,28 @@ from wargame.config import (
 
 app = FastAPI(title="Geopolitical Wargame")
 
-# Game state (single session for now)
-game: dict = {
-    "conn": None,
-    "spec": None,
-    "trace_id": None,
-    "turn_log": [],
-    "action_histories": {},
-    "human_actor": None,
-    "ai_actors": [],
-    "mode": None,
-    "db_path": None,
-    "gm_session": None,
-}
+# Per-visitor game state: `game` resolves to the current request's session dict
+# (see wargame/web/sessions.py). Same keys as before.
+app.add_middleware(SessionMiddleware)
+
+_public_db_dir: str | None = None
+
+
+def _public_db_path(trace_id: str) -> str:
+    """Server-chosen db path in a per-process temp dir, named only from the trace id."""
+    global _public_db_dir
+    if _public_db_dir is None:
+        _public_db_dir = tempfile.mkdtemp(prefix="wargame_games_")
+        atexit.register(shutil.rmtree, _public_db_dir, ignore_errors=True)
+    return str(Path(_public_db_dir) / f"{trace_id}.sqlite")
+
+
+@app.exception_handler(RequestValidationError)
+async def _validation_error(request: Request, exc: RequestValidationError):
+    if public_mode():
+        return JSONResponse({"detail": "The request was not understood."}, status_code=400)
+    return await request_validation_exception_handler(request, exc)
+
 
 WEB_DIR = Path(__file__).parent
 
@@ -98,12 +120,23 @@ async def index():
 @app.post("/api/start")
 async def start_game(req: StartGameRequest):
     """Initialize a new game."""
-    spec = load_scenario(req.scenario_path)
+    public = public_mode()
+    scenario_path = req.scenario_path
+    if public:
+        if req.mode == "ai_vs_ai":
+            raise HTTPException(400, "AI-vs-AI games are not available on this server.")
+        try:
+            scenario_path = resolve_bundled_scenario(scenario_path)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+    spec = load_scenario(scenario_path)
     if req.mode != "ai_vs_ai" and _find_actor(spec, req.play_as) is None:
         raise HTTPException(400, f"Unknown actor: {req.play_as}")
     trace_id = f"wargame_{uuid.uuid4().hex[:8]}"
     db_path = req.db_path
-    if db_path is None:
+    if public:
+        db_path = _public_db_path(trace_id)  # client-supplied db_path is ignored
+    elif db_path is None:
         Path(DEFAULT_DB_DIR).mkdir(parents=True, exist_ok=True)
         db_path = str(Path(DEFAULT_DB_DIR) / f"{trace_id}.sqlite")
     conn = init_db(spec, db_path)
@@ -112,6 +145,9 @@ async def start_game(req: StartGameRequest):
     human_actor = req.play_as if req.mode != "ai_vs_ai" else None
     ai_actors = [a for a in actor_ids if a != human_actor] if human_actor else actor_ids
 
+    # Starting over in the same session releases the previous game's connection
+    # (and, in public mode only, its server-owned db file).
+    discard_game(game, delete_db=public)
     game["conn"] = conn
     game["spec"] = spec
     game["trace_id"] = trace_id
@@ -134,7 +170,7 @@ async def start_game(req: StartGameRequest):
         "play_as": human_actor,
         "actor_names": actor_names,
         "trace_id": trace_id,
-        "db_path": db_path,
+        "db_path": None if public else db_path,
         "state": get_all_variables(conn),
         "estimates": get_actor_state_estimates(conn, human_actor) if human_actor else get_all_variables(conn),
     }
@@ -202,6 +238,10 @@ async def submit_command(req: CommandRequest):
 
     if turns_remaining(conn, spec.meta.turns) == 0:
         raise HTTPException(409, f"Game over: all {spec.meta.turns} turns have been played")
+    if public_mode() and len(game["turn_log"]) >= public_max_turns():
+        raise HTTPException(
+            409, f"This demo is limited to {public_max_turns()} turns per game. Start a new game to keep playing."
+        )
 
     # Parse and validate the human order before anything touches game state, so
     # a rejected order does not advance the turn or apply world dynamics.
