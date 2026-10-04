@@ -132,6 +132,11 @@
   .example-orders { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 12px 0; }
   .example-orders button { background: #111118; border: 1px solid #2a2a35; color: #9a9aa5; font-family: inherit; font-size: 11px; padding: 4px 9px; border-radius: 12px; cursor: pointer; }
   .example-orders button:hover { color: #e0e0e0; border-color: #4ade80; }
+  .quick-start { margin-top: 26px; max-width: 640px; }
+  .quick-label { color: #9a9aa5; font-size: 13px; margin: 0 0 4px; }
+  .quick-orders { justify-content: center; padding: 6px 0 0; }
+  .quick-orders button { font-size: 13px; padding: 8px 14px; color: #e0e0e0; }
+  .example-hint { color: #6a6a75; font-size: 11px; padding: 6px 12px 0; }
   .start-btn { background: #111118; border: 1px solid #2a2a35; color: #c0c0c0; padding: 12px; font-family: inherit; font-size: 13px; cursor: pointer; border-radius: 4px; text-align: left; }
   .start-btn:hover { border-color: #4ade80; color: #4ade80; }
   .start-btn .label { font-weight: bold; display: block; margin-bottom: 3px; }
@@ -178,6 +183,10 @@
         <span class="label">Watch AI vs AI</span>
         <span class="desc">Spectator / God Mode</span>
       </button>
+    </div>
+    <div class="quick-start" id="quick-start" style="display:none">
+      <p class="quick-label">Or see one turn right now. You play the United States; click an order:</p>
+      <div class="example-orders quick-orders" id="quick-orders"></div>
     </div>
   </div>
 
@@ -274,7 +283,7 @@ async function startGame(playAs, mode) {
     const box = document.getElementById('start-error');
     box.textContent = startData.detail || 'The game could not start. Please try again.';
     box.style.display = '';
-    return;
+    return false;
   }
   gameState = startData;
   turnCount = 0;
@@ -291,6 +300,15 @@ async function startGame(playAs, mode) {
     : `You are ${gameState.actor_names[playAs]}. Type commands to act.`);
 
   if (isAiVsAi) runAiVsAi();
+  return true;
+}
+
+// One click from the start screen: start as the United States and play the chosen sample order.
+async function quickStart(order) {
+  if (await startGame('actor_us', 'human_vs_ai')) {
+    addSystemMessage('Your order: ' + order);
+    await submitCommand(order);
+  }
 }
 
 async function runAiVsAi() {
@@ -572,7 +590,11 @@ let serverConfig = null;
     document.getElementById('start-intro').textContent = 'Play one side of a fictional US–Iran crisis. Type any order in plain English (for example a sanction, a signal, a deal); an AI game master decides how the world responds, and fixed rules keep the outcome coherent. You get ' + serverConfig.max_turns + ' turns, and each turn takes about a minute while the game master reasons.';
     document.querySelector('.loading-spinner').textContent = 'The game master is deciding what happens (about a minute)...';
     const box = document.getElementById('example-orders'); box.style.display = '';
-    (serverConfig.example_orders || []).forEach(t => { const b = document.createElement('button'); b.textContent = t; b.onclick = () => { const i = document.getElementById('command-input'); i.value = t; i.focus(); }; box.appendChild(b); });
+    const hint = document.createElement('div'); hint.className = 'example-hint'; hint.textContent = 'Click an order to play it, or type your own above.'; box.parentNode.insertBefore(hint, box);
+    (serverConfig.example_orders || []).forEach(t => { const b = document.createElement('button'); b.textContent = t; b.onclick = () => { if (isProcessing) return; addSystemMessage('Your order: ' + t); submitCommand(t); }; box.appendChild(b); });
+    const quick = document.getElementById('quick-orders');
+    (serverConfig.example_orders || []).forEach(t => { const b = document.createElement('button'); b.textContent = t; b.onclick = () => quickStart(t); quick.appendChild(b); });
+    if ((serverConfig.example_orders || []).length) document.getElementById('quick-start').style.display = '';
   } catch (e) { /* the page still works without the config */ }
 })();
 </script>
