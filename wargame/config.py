@@ -38,7 +38,7 @@ from typing import Any
 # the fast metered route for anything a human waits on, the free subscription
 # route for unattended AI-vs-AI runs where 500 games cost nothing instead of $45.
 # Override with WARGAME_GM_MODEL, or --gm-model on the CLI.
-GM_MODEL_INTERACTIVE = "openrouter/openai/gpt-5.6-luna"
+GM_MODEL_INTERACTIVE = "openrouter/openai/gpt-6-luna"
 GM_MODEL_BATCH = "claude-code/haiku"
 GM_MODEL = os.environ.get("WARGAME_GM_MODEL", GM_MODEL_INTERACTIVE)
 
@@ -61,19 +61,19 @@ def gm_call_defaults(model: str) -> dict[str, Any]:
     return dict(LLM_CALL_DEFAULTS)
 
 
-PARSER_MODEL = "openrouter/openai/gpt-5.6-luna"
-AI_MODEL = "openrouter/openai/gpt-5.6-luna"
-ADVISOR_MODEL = "openrouter/openai/gpt-5.6-luna"
-SCORER_MODEL = "openrouter/openai/gpt-5.6-luna"
+PARSER_MODEL = "openrouter/openai/gpt-6-luna"
+AI_MODEL = "openrouter/openai/gpt-6-luna"
+ADVISOR_MODEL = "openrouter/openai/gpt-6-luna"
+SCORER_MODEL = "openrouter/openai/gpt-6-luna"
 
 # Secondary route. Must support the same reasoning effort as the primary.
-FALLBACK_MODELS = ["openrouter/openai/gpt-5.6-sol"]
+FALLBACK_MODELS = ["openrouter/openai/gpt-6.1-sol"]
 
 REASONING_EFFORT = "low"
 
 MODEL_JUSTIFICATION = (
     "Wargame turn loop: parser, GM adjudication and AI opponent are short "
-    "structured-output calls. gpt-5.6-sol is declared as a fallback so one "
+    "structured-output calls. gpt-6.1-sol is declared as a fallback so one "
     "provider outage does not destroy an in-progress game."
 )
 
