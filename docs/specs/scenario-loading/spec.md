@@ -1,0 +1,1 @@
+../../../openspec/specs/scenario-loading/spec.md

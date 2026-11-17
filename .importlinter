@@ -1,0 +1,13 @@
+# Generated from docs/architecture/*.c4 by `lockstep check arch gen`. Do not edit by hand.
+
+[importlinter]
+root_packages =
+    wargame
+
+[importlinter:contract:wargame.models]
+name = wargame.models imports only what the diagram allows
+type = forbidden
+source_modules = wargame.models
+forbidden_modules =
+    wargame.scenario
+allow_indirect_imports = True

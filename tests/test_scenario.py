@@ -7,6 +7,7 @@ from wargame.scenario import load_scenario
 class TestScenarioLoading:
     """Tests for scenario loading and basic structure."""
 
+    @pytest.mark.req("scenario-loading/bundled-scenario-loads", existing=True)
     def test_scenario_loads(self):
         """Scenario should load successfully with 2 actors and 16 state variables."""
         spec = load_scenario("scenarios/us_iran_2026.yaml")
@@ -15,6 +16,7 @@ class TestScenarioLoading:
         assert len(spec.actors) == 2
         assert len(spec.state_variables) == 16
 
+    @pytest.mark.req("scenario-loading/every-variable-has-an-initial-value", existing=True)
     def test_every_variable_has_an_initial_value(self):
         """Every state variable should have an initial value."""
         spec = load_scenario("scenarios/us_iran_2026.yaml")
@@ -27,6 +29,7 @@ class TestScenarioLoading:
             len(missing) == 0
         ), f"These state variables have no initial_state value: {missing}"
 
+    @pytest.mark.req("scenario-loading/causal-edges-reference-declared-variables", existing=True)
     def test_causal_edges_reference_real_variables(self):
         """Every causal edge should reference declared state variables."""
         spec = load_scenario("scenarios/us_iran_2026.yaml")
