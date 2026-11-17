@@ -1,0 +1,7 @@
+specification { element component }
+model {
+ scenario = component 'Scenario loader' { metadata { python 'wargame.scenario' } }
+ models = component 'Scenario and game models' { metadata { python 'wargame.models' } }
+ scenario -> models 'Validates YAML into ScenarioSpec'
+}
+views { view index { include * } }

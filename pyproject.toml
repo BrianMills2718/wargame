@@ -24,3 +24,16 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 include = ["wargame*"]
+
+[dependency-groups]
+dev = ["agentic-engineering-system", "pytest>=9.1", "import-linter>=2.15"]
+
+[tool.uv.sources]
+agentic-engineering-system = { git = "https://github.com/BrianMills2718/agentic-engineering-system-canonical", rev = "05ee80c1a9cc77f692954b6de09a81ab0d9bdb0a" }
+
+[tool.lockstep]
+source = ["wargame"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

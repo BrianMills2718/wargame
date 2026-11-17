@@ -1,4 +1,12 @@
-"""Load a scenario YAML into an in-memory ScenarioSpec and initialize SQLite."""
+"""Load a scenario YAML into an in-memory ScenarioSpec and initialize SQLite.
+
+Implements: scenario-loading/load-a-scenario-file
+
+Requirement text (generated):
+    scenario-loading/load-a-scenario-file: The scenario loader SHALL parse a scenario YAML file into
+        a validated scenario specification whose actors, state variables, initial state and causal
+        edges are internally consistent.
+"""
 
 from __future__ import annotations
 

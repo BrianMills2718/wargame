@@ -32,3 +32,8 @@ Thumbs.db
 
 # Large files
 chatgpt_initial_discussion/chunked/
+
+.venv/
+.code2check/
+.pytest_cache/
+.import_linter_cache/
